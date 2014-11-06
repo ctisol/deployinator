@@ -1,4 +1,4 @@
-# config valid only for Capistrano 3.1
+# config valid only for Capistrano 3.2.1
 lock '3.2.1'
 
 # Use `from_local=true bundle exec cap <stage> deploy` to deploy your
@@ -72,9 +72,9 @@ namespace :deploy do
   before :restart, :install_config_files do
     on roles(:web) do |host|
       require 'erb'
-      { 'config/nginx.conf.erb'   => "#{current_path}/config/#{fetch(:application)}-nginx.conf",
-        'config/php-fpm.conf.erb' => "#{current_path}/config/#{fetch(:application)}-php-fpm.conf",
-        'config/php.ini.erb'      => "#{current_path}/config/#{fetch(:application)}-php.ini"
+      { 'config/nginx.conf.erb'   => "#{current_path}/config/nginx.conf",
+        'config/php-fpm.conf.erb' => "#{current_path}/config/php-fpm.conf",
+        'config/php.ini.erb'      => "#{current_path}/config/php.ini"
       }.each do |template, upload_path|
         @worker_processes = fetch(:worker_processes)
         template_path = File.expand_path(template)

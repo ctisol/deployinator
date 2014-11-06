@@ -9,7 +9,10 @@ Gem::Specification.new do |s|
   s.files       = [
     "lib/deployinator.rb",
     "lib/deployinator/deploy.rb",
-    "lib/deployinator/config.rb"
+    "lib/deployinator/config.rb",
+    "lib/deployinator/deploy_example_application.rb",
+    "lib/deployinator/production_example_application.rb",
+    "lib/deployinator/staging_example_application.rb"
   ]
   s.add_runtime_dependency 'capistrano', '= 3.2.1'
   s.homepage    =
