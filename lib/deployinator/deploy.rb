@@ -1,119 +1,323 @@
-# config valid only for Capistrano 3.2.1
+# config valid only for Capistrano 3.1
 lock '3.2.1'
-
-# Use `from_local=true bundle exec cap <stage> deploy` to deploy your
-#   locally changed code instead of the code in the git repo.
-#   TODO this is not working yet
-if ENV['from_local']
-  set :repo_url, 'file://.'
-  set :scm, :none
-else
-  set :repo_url, 'git@github.com:snarlysodboxer/example.git'
-  set :scm, :git
-end
-
-# Default branch is :master
-# ask :branch, proc { `git rev-parse --abbrev-ref HEAD`.chomp }.call
-
-# Default deploy_to directory is /var/www/my_app
-# set :deploy_to, '/var/www/my_app'
-
-# Default value for :format is :pretty
-# set :format, :pretty
-
-# Default value for :log_level is :debug
-#set :log_level, :debug
-set :log_level, :info
-
-# Default value for :pty is false
-# set :pty, true
-
-# Default value for :linked_files is []
-# set :linked_files, %w{config/nginx.conf}
-
-# Default value for linked_dirs is []
-# set :linked_dirs, %w{bin log tmp/pids tmp/cache tmp/sockets vendor/bundle public/system}
-
-# Default value for default_env is {}
-# set :default_env, { path: "/opt/ruby/bin:$PATH" }
-
-# Default value for keep_releases is 5
-# set :keep_releases, 5
 
 namespace :deploy do
 
-  # :started is the hook before which to set/check your needed environment/settings
-  before :started, :ensure_setup
-
-  task :ensure_setup do
-    on roles(:web), :once => true do
-      raise "You need to use ruby 1.9 or higher where you are running this capistrano command." unless RUBY_VERSION >= "1.9"
-      test "bash", "-l", "-c", "'docker", "ps", "&>", "/dev/null", "||", "sudo", "usermod", "-a", "-G", "docker", "$USER'"
-    end
+  task :set_bundle_command_map => [:set_deployer_user_id] do
+    SSHKit.config.command_map[:bundle] = [
+      "/usr/bin/env docker run --rm --tty",
+      "--user", fetch(:deployer_user_id),
+      "-e", "GEM_HOME=#{fetch(:deploy_to)}/shared/bundle",
+      "-e", "GEM_PATH=#{fetch(:deploy_to)}/shared/bundle",
+      "-e", "PATH=#{fetch(:deploy_to)}/shared/bundle/bin:$PATH",
+      "--entrypoint", "#{fetch(:deploy_to)}/shared/bundle/bin/bundle",
+      "--volume #{fetch(:deploy_to)}:#{fetch(:deploy_to)}:rw",
+      fetch(:ruby_image_name)
+    ].join(' ')
+    set :bundle_binstubs, -> { shared_path.join('bundle', 'bin') }
+    set :bundle_gemfile, -> { release_path.join('Gemfile') }
   end
+  before 'bundler:install', 'deploy:set_bundle_command_map'
 
-  # do this so capistrano has permissions to remove old releases
-  before :updating, :revert_permissions do
-    on roles(:web) do
-      if test "[", "-d", "#{releases_path}", "]"
-        execute "bash", "-l", "-c", "'sudo", "chown", "-R", "deployer.", "#{releases_path}'"
-      end
-    end
+  task :set_rm_command_map do
+    SSHKit.config.command_map[:rm] = "/usr/bin/env sudo rm"
   end
+  before 'deploy:started', 'deploy:set_rm_command_map'
 
-  before :restart, :ensure_permissions do
-    on roles(:web) do
-      execute "bash", "-l", "-c", "'sudo", "mkdir", "-p", "#{current_path}/data/cache'"
-      execute "bash", "-l", "-c", "'sudo", "chown", "-R", "www-data.", "#{current_path}/data'"
-    end
-  end
+  # Append dependancy to existing cleanup task
+  task :cleanup => :set_rm_command_map
 
-  #desc 'Install config files in current_path'
-  before :restart, :install_config_files do
-    on roles(:web) do |host|
-      require 'erb'
-      { 'config/nginx.conf.erb'   => "#{current_path}/config/nginx.conf",
-        'config/php-fpm.conf.erb' => "#{current_path}/config/php-fpm.conf",
-        'config/php.ini.erb'      => "#{current_path}/config/php.ini"
-      }.each do |template, upload_path|
-        @worker_processes = fetch(:worker_processes)
-        template_path = File.expand_path(template)
-        host_config   = ERB.new(File.new(template_path).read).result(binding)
-        upload! StringIO.new(host_config), upload_path
-      end
-    end
-  end
-
-  desc 'Restart or start application'
-  task :restart do
-    on roles(:web) do
-      ['php5', 'nginx'].each do |name|
-        container = {
-          :name         => fetch("#{name}_container_name".to_sym),
-          :run_options  => fetch("#{name}_run_options".to_sym).join(' '),
-          :image        => fetch("#{name}_image_name".to_sym)
-        }
-        exists      = "docker inspect #{container[:name]} &> /dev/null"
-        is_running  = "docker inspect --format='{{.State.Running}}' #{container[:name]} 2>&1 | grep -q true"
-        if test(exists)
-          if test(is_running)
-            execute "docker", "stop", container[:name]
-          end
-          execute "docker", "rm", container[:name]
-        end
+  # Overwrite :assets:precompile to use docker
+  namespace :assets do
+    Rake::Task["deploy:assets:precompile"].clear
+    task :precompile do
+      on roles(fetch(:assets_roles)) do
         execute(
-          "docker", "run",
-          "--detach", "--tty",
-          "--name", container[:name],
-          container[:run_options],
-          container[:image]
+          "docker", "run", "--rm", "--tty",
+          "-w", fetch(:release_path, "#{fetch(:deploy_to)}/current"),
+          "--entrypoint", "#{fetch(:deploy_to)}/shared/bundle/bin/rake",
+          "--volume", "#{fetch(:deploy_to)}:#{fetch(:deploy_to)}:rw",
+          fetch(:ruby_image_name), "assets:precompile"
         )
-        sleep 2
-        error("Container #{container[:name]} did not stay running more than 2 seconds!") unless test(is_running)
       end
     end
   end
 
-  # :publishing is the hook after which to set our service restart commands
+  # Overwrite :cleanup_assets to use docker
+  Rake::Task["deploy:cleanup_assets"].clear
+  desc 'Cleanup expired assets'
+  task :cleanup_assets => [:set_rails_env] do
+    on roles(fetch(:assets_roles)) do
+      execute(
+        "docker", "run", "--rm", "--tty",
+        "-e", "RAILS_ENV=#{fetch(:rails_env)}",
+        "-w", fetch(:release_path, "#{fetch(:deploy_to)}/current"),
+        "--entrypoint", "#{fetch(:deploy_to)}/shared/bundle/bin/bundle",
+        "--volume", "#{fetch(:deploy_to)}:#{fetch(:deploy_to)}:rw",
+        fetch(:ruby_image_name), "exec", "rake", "assets:clean"
+      )
+    end
+  end
+
+  # Overwrite :migrate to use docker
+  Rake::Task["deploy:migrate"].clear
+  desc 'Runs rake db:migrate if migrations are set'
+  task :migrate => [:set_rails_env, :ensure_running_postgres] do
+    on primary fetch(:migration_role) do
+      conditionally_migrate = fetch(:conditionally_migrate)
+      info '[deploy:migrate] Checking changes in /db/migrate' if conditionally_migrate
+      if conditionally_migrate && test("diff -q #{release_path}/db/migrate #{current_path}/db/migrate")
+        info '[deploy:migrate] Skip `deploy:migrate` (nothing changed in db/migrate)'
+      else
+        info '[deploy:migrate] Run `rake db:migrate`' if conditionally_migrate
+        execute(
+          "docker", "run", "--rm", "--tty",
+          "--link", "#{fetch(:postgres_container_name)}:postgres",
+          "--volume", "#{fetch(:deploy_to)}:#{fetch(:deploy_to)}:rw",
+          "-e", "RAILS_ENV=#{fetch(:rails_env)}",
+          "--entrypoint", "#{fetch(:deploy_to)}/shared/bundle/bin/rake",
+          "-w", fetch(:release_path, "#{fetch(:deploy_to)}/current"),
+          fetch(:ruby_image_name), "db:migrate"
+        )
+      end
+    end
+  end
+
+  # TODO make this better
+  task :ensure_running_postgres do
+    on primary fetch(:migration_role) do
+      unless capture("nc", "127.0.0.1", fetch(:postgres_port), "<", "/dev/null", ">", "/dev/null;", "echo", "$?").strip == "0"
+        fatal "Port #{fetch(:postgres_port)} is not responding, cannot db:migrate!"
+        raise
+      end
+    end
+  end
+#  task :ensure_running_postgres do
+#    on primary fetch(:migration_role) do
+#      if test "docker", "inspect", fetch(:postgres_container_name), "&>", "/dev/null"
+#        if (capture "docker", "inspect",
+#            "--format='{{.State.Running}}'",
+#            fetch(:postgres_container_name)).strip == "true"
+#        else
+#          execute "docker", "start", fetch(:postgres_container_name)
+#        end
+#      else
+#        set :run_pg_setup, ask("'true' or 'false', - #{fetch(:postgres_container_name)} is not running, would you like to run 'rake pg:setup'?", "false")
+#        if fetch(:run_pg_setup) == "true"
+#          #load Gem.bin_path('bundler', 'bundle')
+#          #import 'postgresinator'
+#          #load './infrastructure/Rakefile'
+#          Rake::Task['pg:setup'].invoke
+#        else
+#          raise "#{fetch(:postgres_container_name)} is not running, can't run db:migrate!"
+#        end
+#      end
+#    end
+#  end
+  before 'deploy:started', :ensure_running_postgres
+
+  before 'deploy:check', :setup_deployer_user do
+    on "#{ENV['USER']}@#{fetch(:domain)}" do
+      as :root do
+        unless test "id", "deployer"
+          execute "adduser", "--disabled-password", "--gecos", "\"\"", "deployer"
+          execute "usermod", "-a", "-G", "sudo", "deployer"
+          execute "usermod", "-a", "-G", "docker", "deployer"
+        end
+        execute "mkdir", "-p", "/home/deployer/.ssh"
+        # upload! does not yet honor "as" and similar scoping methods
+        upload! "#{`pwd`.strip}/config/deployer_authorized_keys", '/tmp/authorized_keys'
+        execute "mv", "-b", '/tmp/authorized_keys', '/home/deployer/.ssh/authorized_keys'
+        execute "chown", "-R", "deployer:deployer", '/home/deployer/.ssh'
+        execute "chmod", "700", '/home/deployer/.ssh'
+        execute "chmod", "600", '/home/deployer/.ssh/authorized_keys'
+      end
+    end
+  end
+
+  task :ensure_www_data_user do
+    on "#{ENV['USER']}@#{fetch(:domain)}" do
+      as :root do
+        unless test "id", "www-data"
+          execute "adduser", "--disabled-password", "--gecos", "\"\"", "www-data"
+        end
+      end
+    end
+  end
+  after 'deploy:started', :ensure_www_data_user
+
+  task :set_deployer_user_id do
+    on roles(:app), in: :sequence, wait: 5 do
+      set :deployer_user_id, capture("id", "-u", "deployer").strip
+    end
+  end
+
+  task :set_www_data_user_id do
+    on roles(:app), in: :sequence, wait: 5 do
+      set :www_data_user_id, capture("id", "-u", "www-data").strip
+    end
+  end
+
+  task :chown_log_dir => :set_www_data_user_id do
+    on roles(:app), in: :sequence, wait: 5 do
+      as :root do
+        unless test "[", "-d", "#{fetch(:deploy_to)}/shared/log", "]"
+          execute("mkdir", "-p", "#{fetch(:deploy_to)}/shared/log")
+        end
+        execute "chown", "-R", "#{fetch(:www_data_user_id)}:#{fetch(:www_data_user_id)}", "#{fetch(:deploy_to)}/shared/log"
+      end
+    end
+  end
+  before 'deploy:check:linked_dirs', :chown_log_dir
+
+  task :setup_deploy_to_dir => :set_deployer_user_id do
+    on roles(:app), in: :sequence, wait: 5 do
+      as :root do
+        [
+          fetch(:deploy_to),
+          #"#{fetch(:deploy_to)}/current",
+          "#{fetch(:deploy_to)}/shared",
+          "#{fetch(:deploy_to)}/releases"
+        ].each do |dir|
+          unless test "[", "-d", dir, "]"
+            execute("mkdir", "-p", dir)
+          end
+          execute "chown", "#{fetch(:deployer_user_id)}:#{fetch(:deployer_user_id)}", dir
+        end
+      end
+    end
+  end
+  after :setup_deployer_user, :setup_deploy_to_dir
+
+  task :install_bundler => :set_deployer_user_id do
+    on roles(:app), in: :sequence, wait: 5 do
+      as :root do
+        unless test "[", "-f", "#{fetch(:deploy_to)}/shared/bundle/bin/bundle", "]"
+          execute(
+            "docker", "run", "--rm", "--tty",
+            "-e", "GEM_HOME=#{fetch(:deploy_to)}/shared/bundle",
+            "-e", "GEM_PATH=#{fetch(:deploy_to)}/shared/bundle",
+            "-e", "PATH=#{fetch(:deploy_to)}/shared/bundle/bin:$PATH",
+            "--entrypoint", "/usr/local/bin/gem",
+            "--volume", "#{fetch(:deploy_to)}:#{fetch(:deploy_to)}:rw",
+            fetch(:ruby_image_name), "install",
+            "--install-dir", "#{fetch(:deploy_to)}/shared/bundle",
+            "--bindir", "#{fetch(:deploy_to)}/shared/bundle/bin",
+            "--no-ri", "--no-rdoc", "--quiet", "bundler", "-v'1.7.4'"
+          )
+        end
+        execute "chown", "-R", "#{fetch(:deployer_user_id)}:#{fetch(:deployer_user_id)}", "#{fetch(:deploy_to)}/shared/bundle"
+      end
+    end
+  end
+  before 'bundler:install', 'deploy:install_bundler'
+
+  desc 'Restart application'
+  task :restart => :set_www_data_user_id do
+    on roles(:app), in: :sequence, wait: 5 do
+      if test "docker", "inspect", fetch(:ruby_container_name), "&>", "/dev/null"
+        if (capture "docker", "inspect",
+            "--format='{{.State.Restarting}}'",
+            fetch(:ruby_container_name)).strip == "true"
+          execute("docker", "stop", fetch(:ruby_container_name))
+          execute("docker", "wait", fetch(:ruby_container_name))
+        end
+        if (capture "docker", "inspect",
+            "--format='{{.State.Running}}'",
+            fetch(:ruby_container_name)).strip == "true"
+          execute(
+            "docker", "exec", "--tty",
+            fetch(:ruby_container_name),
+            "#{fetch(:deploy_to)}/shared/bundle/bin/bluepill",
+            "contractport", "stop"
+          )
+          sleep 5
+          execute("docker", "stop", fetch(:ruby_container_name))
+          execute("docker", "wait", fetch(:ruby_container_name))
+        end
+        sleep 2
+        execute("docker", "rm",   fetch(:ruby_container_name))
+      end
+      as :root do
+        [
+          fetch(:external_socket_path),
+          "#{fetch(:deploy_to)}/current/public",
+          "#{fetch(:deploy_to)}/shared/tmp",
+          "#{fetch(:deploy_to)}/shared/log/production.log"
+        ].each do |directory|
+          execute "chown", "-R", "#{fetch(:www_data_user_id)}:#{fetch(:www_data_user_id)}", directory
+        end
+        execute "chown", "-R", "#{fetch(:deployer_user_id)}:#{fetch(:deployer_user_id)}", "#{fetch(:deploy_to)}/shared/bundle"
+      end
+      execute(
+        "docker", "run", "--tty", "--detach",
+        "--name", fetch(:ruby_container_name),
+        "-e", "GEM_HOME=#{fetch(:deploy_to)}/shared/bundle",
+        "-e", "GEM_PATH=#{fetch(:deploy_to)}/shared/bundle",
+        "-e", "BUNDLE_GEMFILE=#{fetch(:deploy_to)}/current/Gemfile",
+        "-e", "PATH=#{fetch(:deploy_to)}/shared/bundle/bin:$PATH",
+        "--link", "#{fetch(:postgres_container_name)}:postgres",
+        "--volume", "#{fetch(:deploy_to)}:#{fetch(:deploy_to)}:rw",
+        "--volume", "#{fetch(:external_socket_path)}:/var/run/unicorn:rw",
+        "--volume", "#{fetch(:external_socket_path)}:/var/run/bluepill:rw",
+        "--entrypoint", "#{fetch(:deploy_to)}/shared/bundle/bin/bluepill",
+        "--restart", "always", "--memory", "#{fetch(:ruby_container_max_mem_mb)}m",
+        fetch(:ruby_image_name), "load",
+        "#{fetch(:deploy_to)}/current/config/#{fetch(:application)}_bluepill.rb"
+      )
+    end
+  end
   after :publishing, :restart
+
+  after :publishing, :check_nginx_running do
+    on primary fetch(:migration_role) do
+      if test "docker", "inspect", fetch(:nginx_container_name), "&>", "/dev/null"
+        if (capture "docker", "inspect",
+            "--format='{{.State.Running}}'",
+            fetch(:nginx_container_name)).strip == "true"
+        else
+          warn "The nginx container named #{fetch(:nginx_container_name)} exists but is not running. (You need this, start it, or re-run setup with something like nginxinator.)"
+        end
+      else
+        warn "No nginx container named #{fetch(:nginx_container_name)} exists! (You need this, set it up with something like nginxinator.)"
+      end
+    end
+  end
+
+  after :publishing, :ensure_cadvisor do
+    on roles(:app), in: :sequence, wait: 5 do
+      if test "docker", "inspect", "cadvisor", "&>", "/dev/null"
+        if (capture "docker", "inspect",
+            "--format='{{.State.Running}}'",
+            "cadvisor").strip == "true"
+          info "cadvisor is already running."
+        else
+          info "Restarting existing cadvisor container."
+          execute "docker", "start", "cadvisor"
+        end
+      else
+        execute(
+          "docker", "run", "--detach",
+          "--name", "cadvisor",
+          "--volume", "/:/rootfs:ro",
+          "--volume", "/var/run:/var/run:rw",
+          "--volume", "/sys:/sys:ro",
+          "--volume", "/var/lib/docker/:/var/lib/docker:ro",
+          "--publish", "127.0.0.1:8080:8080",
+          "--restart", "always",
+          "google/cadvisor:0.5.0"
+        )
+      end
+    end
+  end
+
+  after :restart, :clear_cache do
+    on roles(:web), in: :groups, limit: 3, wait: 10 do
+      # Here we can do anything such as:
+      # within release_path do
+      #   execute :rake, 'cache:clear'
+      # end
+    end
+  end
+
 end
