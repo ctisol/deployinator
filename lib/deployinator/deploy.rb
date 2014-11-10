@@ -14,8 +14,6 @@ namespace :deploy do
       "--volume #{fetch(:deploy_to)}:#{fetch(:deploy_to)}:rw",
       fetch(:ruby_image_name)
     ].join(' ')
-    set :bundle_binstubs, -> { shared_path.join('bundle', 'bin') }
-    set :bundle_gemfile, -> { release_path.join('Gemfile') }
   end
   before 'bundler:install', 'deploy:set_bundle_command_map'
 
@@ -28,8 +26,8 @@ namespace :deploy do
   task :cleanup => :set_rm_command_map
 
   # Overwrite :assets:precompile to use docker
+  Rake::Task["deploy:assets:precompile"].clear
   namespace :assets do
-    Rake::Task["deploy:assets:precompile"].clear
     task :precompile do
       on roles(fetch(:assets_roles)) do
         execute(
@@ -125,8 +123,11 @@ namespace :deploy do
           execute "usermod", "-a", "-G", "docker", "deployer"
         end
         execute "mkdir", "-p", "/home/deployer/.ssh"
+        #@settings     = settings # needed for ERB
+        template_path = File.expand_path("./templates/deploy/deployer_authorized_keys.erb")
+        generated_config_file = ERB.new(File.new(template_path).read).result(binding)
         # upload! does not yet honor "as" and similar scoping methods
-        upload! "#{`pwd`.strip}/config/deployer_authorized_keys", '/tmp/authorized_keys'
+        upload! StringIO.new(generated_config_file), "/tmp/authorized_keys"
         execute "mv", "-b", '/tmp/authorized_keys', '/home/deployer/.ssh/authorized_keys'
         execute "chown", "-R", "deployer:deployer", '/home/deployer/.ssh'
         execute "chmod", "700", '/home/deployer/.ssh'
@@ -213,7 +214,7 @@ namespace :deploy do
   before 'bundler:install', 'deploy:install_bundler'
 
   desc 'Restart application'
-  task :restart => :set_www_data_user_id do
+  task :restart => [:set_www_data_user_id, :install_config_files] do
     on roles(:app), in: :sequence, wait: 5 do
       if test "docker", "inspect", fetch(:ruby_container_name), "&>", "/dev/null"
         if (capture "docker", "inspect",
@@ -229,14 +230,23 @@ namespace :deploy do
             "docker", "exec", "--tty",
             fetch(:ruby_container_name),
             "#{fetch(:deploy_to)}/shared/bundle/bin/bluepill",
-            "contractport", "stop"
+            fetch(:application), "stop"
           )
           sleep 5
           execute("docker", "stop", fetch(:ruby_container_name))
           execute("docker", "wait", fetch(:ruby_container_name))
         end
         sleep 2
-        execute("docker", "rm",   fetch(:ruby_container_name))
+        begin
+          execute("docker", "rm",   fetch(:ruby_container_name))
+        rescue
+          sleep 5
+          begin
+            execute("docker", "rm",   fetch(:ruby_container_name))
+          rescue
+            fatal "We were not able to remove the container for some reason. Try running 'cap <stage> deploy:restart' again."
+          end
+        end
       end
       as :root do
         [
@@ -259,7 +269,6 @@ namespace :deploy do
         "--link", "#{fetch(:postgres_container_name)}:postgres",
         "--volume", "#{fetch(:deploy_to)}:#{fetch(:deploy_to)}:rw",
         "--volume", "#{fetch(:external_socket_path)}:/var/run/unicorn:rw",
-        "--volume", "#{fetch(:external_socket_path)}:/var/run/bluepill:rw",
         "--entrypoint", "#{fetch(:deploy_to)}/shared/bundle/bin/bluepill",
         "--restart", "always", "--memory", "#{fetch(:ruby_container_max_mem_mb)}m",
         fetch(:ruby_image_name), "load",
@@ -317,6 +326,29 @@ namespace :deploy do
       # within release_path do
       #   execute :rake, 'cache:clear'
       # end
+    end
+  end
+
+  task :install_config_files => [:set_deployer_user_id] do
+    on roles(:app), in: :sequence, wait: 5 do
+      set :bluepill_config, -> { "#{fetch(:application)}_bluepill.rb" }
+      set :unicorn_config,  -> { "#{fetch(:application)}_unicorn.rb" }
+      set :sock_path,       -> { fetch(:internal_sock_path) }
+      as 'root' do
+        [fetch(:bluepill_config), fetch(:unicorn_config)].each do |config_file|
+          @deploy_to          = fetch(:deploy_to)   # needed for ERB
+          @internal_sock_path = fetch(:sock_path)   # needed for ERB
+          @application        = fetch(:application) # needed for ERB
+          template_path = File.expand_path("./templates/deploy/#{config_file}.erb")
+          current_path  = Pathname.new("#{fetch(:deploy_to)}/current")
+          generated_config_file = ERB.new(File.new(template_path).read).result(binding)
+          set :final_path, -> { fetch(:release_path, current_path).join('config', config_file) }
+          upload! StringIO.new(generated_config_file), "/tmp/#{config_file}"
+          execute("mv", "/tmp/#{config_file}", fetch(:final_path))
+          execute("chown", "#{fetch(:deployer_user_id)}:#{fetch(:deployer_user_id)}", fetch(:final_path))
+          execute("chmod", "664", fetch(:final_path))
+        end
+      end
     end
   end
 
