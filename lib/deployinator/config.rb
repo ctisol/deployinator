@@ -51,9 +51,9 @@ namespace :deployinator do
   before 'deploy:starting', 'deployinator:check_templates'
 
   desc 'Write example config files'
-  task :install do
+  task :write_example_configs do
     run_locally do
-      execute "mkdir -p config/deploy templates/deploy"
+      execute "mkdir", "-p", "config/deploy", "templates/deploy"
       {
         "examples/Capfile"                                => "Capfile_example",
         "examples/config/deploy.rb"                       => "config/deploy_example.rb",

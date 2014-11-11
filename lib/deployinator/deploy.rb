@@ -258,6 +258,7 @@ namespace :deploy do
         end
         execute "chown", "-R", "#{fetch(:deployer_user_id)}:#{fetch(:deployer_user_id)}", "#{fetch(:deploy_to)}/shared/bundle"
       end
+      execute("rm", "-f", "#{fetch(:external_socket_path)}/unicorn.pid")
       execute("docker", "run", fetch(:docker_run_bluepill_command))
     end
   end
