@@ -33,9 +33,9 @@ namespace :deployinator do
 #  end
 #  before 'deploy:starting', 'deployinator:check_settings'
 
+  # TODO make this better
   task :check_templates do
     run_locally do
-      deploy_config     = File.expand_path("./config/deployinator.rb")
       keys_template     = File.expand_path("./templates/deploy/deployer_authorized_keys.erb")
       bluepill_template = File.expand_path("./templates/deploy/#{fetch(:application)}_bluepill.rb.erb")
       unicorn_template  = File.expand_path("./templates/deploy/#{fetch(:application)}_unicorn.rb.erb")
@@ -53,15 +53,17 @@ namespace :deployinator do
   desc 'Write example config files'
   task :install do
     run_locally do
-      execute "mkdir -p config/depoy templates/deploy"
+      execute "mkdir -p config/deploy templates/deploy"
       {
-        "examples/Capfile"                      => "Capfile_example",
-        "examples/deploy.rb"                    => "config/deploy_example.rb",
-        "examples/deploy_staging.rb"            => "config/deploy/staging_example.rb",
-        "examples/Dockerfile"                   => "templates/deploy/Dockerfile_example",
-        "examples/deployer_authorized_keys.erb" => "templates/deploy/deployer_authorized_keys_example.erb",
-        "examples/application_unicorn.rb.erb"   => "templates/deploy/#{fetch(:application, "my_app")}_unicorn_example.rb.erb",
-        "examples/application_bluepill.rb.erb"  => "templates/deploy/#{fetch(:application, "my_app")}_bluepill_example.rb.erb"
+        "examples/Capfile"                                => "Capfile_example",
+        "examples/config/deploy.rb"                       => "config/deploy_example.rb",
+        "examples/config/deploy_deployinator.rb"          => "config/deploy_deployinator_example.rb",
+        "examples/config/deploy/staging.rb"               => "config/deploy/staging_example.rb",
+        "examples/config/deploy/staging_deployinator.rb"  => "config/deploy/staging_deployinator_example.rb",
+        "examples/Dockerfile"                             => "templates/deploy/Dockerfile_example",
+        "examples/deployer_authorized_keys.erb"           => "templates/deploy/deployer_authorized_keys_example.erb",
+        "examples/application_unicorn.rb.erb"             => "templates/deploy/#{fetch(:application, "my_app")}_unicorn_example.rb.erb",
+        "examples/application_bluepill.rb.erb"            => "templates/deploy/#{fetch(:application, "my_app")}_bluepill_example.rb.erb"
       }.each do |source, destination|
         config = File.read(File.dirname(__FILE__) + "/#{source}")
         File.open("./#{destination}", 'w') { |f| f.write(config) }

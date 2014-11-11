@@ -117,21 +117,21 @@ namespace :deploy do
   before 'deploy:check', :setup_deployer_user do
     on "#{ENV['USER']}@#{fetch(:domain)}" do
       as :root do
-        unless test "id", "deployer"
-          execute "adduser", "--disabled-password", "--gecos", "\"\"", "deployer"
-          execute "usermod", "-a", "-G", "sudo", "deployer"
-          execute "usermod", "-a", "-G", "docker", "deployer"
+        unless test "id", fetch(:deploy_username)
+          execute "adduser", "--disabled-password", "--gecos", "\"\"", fetch(:deploy_username)
+          execute "usermod", "-a", "-G", "sudo", fetch(:deploy_username)
+          execute "usermod", "-a", "-G", "docker", fetch(:deploy_username)
         end
-        execute "mkdir", "-p", "/home/deployer/.ssh"
-        #@settings     = settings # needed for ERB
-        template_path = File.expand_path("./templates/deploy/deployer_authorized_keys.erb")
+        execute "mkdir", "-p", "/home/#{fetch(:deploy_username)}/.ssh"
+        # not actually using ERB interpolation, no need for an instance variable.
+        template_path = File.expand_path("./templates/deploy/#{fetch(:deploy_username)}_authorized_keys.erb")
         generated_config_file = ERB.new(File.new(template_path).read).result(binding)
         # upload! does not yet honor "as" and similar scoping methods
         upload! StringIO.new(generated_config_file), "/tmp/authorized_keys"
-        execute "mv", "-b", '/tmp/authorized_keys', '/home/deployer/.ssh/authorized_keys'
-        execute "chown", "-R", "deployer:deployer", '/home/deployer/.ssh'
-        execute "chmod", "700", '/home/deployer/.ssh'
-        execute "chmod", "600", '/home/deployer/.ssh/authorized_keys'
+        execute "mv", "-b", "/tmp/authorized_keys", "/home/#{fetch(:deploy_username)}/.ssh/authorized_keys"
+        execute "chown", "-R", "#{fetch(:deploy_username)}:#{fetch(:deploy_username)}", "/home/#{fetch(:deploy_username)}/.ssh"
+        execute "chmod", "700", "/home/#{fetch(:deploy_username)}/.ssh"
+        execute "chmod", "600", "/home/#{fetch(:deploy_username)}/.ssh/authorized_keys"
       end
     end
   end
@@ -149,7 +149,7 @@ namespace :deploy do
 
   task :set_deployer_user_id do
     on roles(:app), in: :sequence, wait: 5 do
-      set :deployer_user_id, capture("id", "-u", "deployer").strip
+      set :deployer_user_id, capture("id", "-u", fetch(:deploy_username)).strip
     end
   end
 
@@ -176,7 +176,6 @@ namespace :deploy do
       as :root do
         [
           fetch(:deploy_to),
-          #"#{fetch(:deploy_to)}/current",
           "#{fetch(:deploy_to)}/shared",
           "#{fetch(:deploy_to)}/releases"
         ].each do |dir|
@@ -204,7 +203,7 @@ namespace :deploy do
             fetch(:ruby_image_name), "install",
             "--install-dir", "#{fetch(:deploy_to)}/shared/bundle",
             "--bindir", "#{fetch(:deploy_to)}/shared/bundle/bin",
-            "--no-ri", "--no-rdoc", "--quiet", "bundler", "-v'1.7.4'"
+            "--no-ri", "--no-rdoc", "--quiet", "bundler", "-v'#{fetch(:bundler_version)}'"
           )
         end
         execute "chown", "-R", "#{fetch(:deployer_user_id)}:#{fetch(:deployer_user_id)}", "#{fetch(:deploy_to)}/shared/bundle"
@@ -259,21 +258,7 @@ namespace :deploy do
         end
         execute "chown", "-R", "#{fetch(:deployer_user_id)}:#{fetch(:deployer_user_id)}", "#{fetch(:deploy_to)}/shared/bundle"
       end
-      execute(
-        "docker", "run", "--tty", "--detach",
-        "--name", fetch(:ruby_container_name),
-        "-e", "GEM_HOME=#{fetch(:deploy_to)}/shared/bundle",
-        "-e", "GEM_PATH=#{fetch(:deploy_to)}/shared/bundle",
-        "-e", "BUNDLE_GEMFILE=#{fetch(:deploy_to)}/current/Gemfile",
-        "-e", "PATH=#{fetch(:deploy_to)}/shared/bundle/bin:$PATH",
-        "--link", "#{fetch(:postgres_container_name)}:postgres",
-        "--volume", "#{fetch(:deploy_to)}:#{fetch(:deploy_to)}:rw",
-        "--volume", "#{fetch(:external_socket_path)}:/var/run/unicorn:rw",
-        "--entrypoint", "#{fetch(:deploy_to)}/shared/bundle/bin/bluepill",
-        "--restart", "always", "--memory", "#{fetch(:ruby_container_max_mem_mb)}m",
-        fetch(:ruby_image_name), "load",
-        "#{fetch(:deploy_to)}/current/config/#{fetch(:application)}_bluepill.rb"
-      )
+      execute("docker", "run", fetch(:docker_run_bluepill_command))
     end
   end
   after :publishing, :restart
@@ -295,27 +280,19 @@ namespace :deploy do
 
   after :publishing, :ensure_cadvisor do
     on roles(:app), in: :sequence, wait: 5 do
-      if test "docker", "inspect", "cadvisor", "&>", "/dev/null"
-        if (capture "docker", "inspect",
-            "--format='{{.State.Running}}'",
-            "cadvisor").strip == "true"
-          info "cadvisor is already running."
+      if fetch(:use_cadvisor, true)
+        if test "docker", "inspect", "cadvisor", "&>", "/dev/null"
+          if (capture "docker", "inspect",
+              "--format='{{.State.Running}}'",
+              "cadvisor").strip == "true"
+            info "cadvisor is already running."
+          else
+            info "Restarting existing cadvisor container."
+            execute "docker", "start", "cadvisor"
+          end
         else
-          info "Restarting existing cadvisor container."
-          execute "docker", "start", "cadvisor"
+          execute("docker", "run", fetch(:docker_run_cadvisor_command))
         end
-      else
-        execute(
-          "docker", "run", "--detach",
-          "--name", "cadvisor",
-          "--volume", "/:/rootfs:ro",
-          "--volume", "/var/run:/var/run:rw",
-          "--volume", "/sys:/sys:ro",
-          "--volume", "/var/lib/docker/:/var/lib/docker:ro",
-          "--publish", "127.0.0.1:8080:8080",
-          "--restart", "always",
-          "google/cadvisor:0.5.0"
-        )
       end
     end
   end
@@ -333,12 +310,12 @@ namespace :deploy do
     on roles(:app), in: :sequence, wait: 5 do
       set :bluepill_config, -> { "#{fetch(:application)}_bluepill.rb" }
       set :unicorn_config,  -> { "#{fetch(:application)}_unicorn.rb" }
-      set :sock_path,       -> { fetch(:internal_sock_path) }
+      set :socket_path,     -> { fetch(:internal_socket_path) }
       as 'root' do
         [fetch(:bluepill_config), fetch(:unicorn_config)].each do |config_file|
-          @deploy_to          = fetch(:deploy_to)   # needed for ERB
-          @internal_sock_path = fetch(:sock_path)   # needed for ERB
-          @application        = fetch(:application) # needed for ERB
+          @deploy_to            = fetch(:deploy_to)   # needed for ERB
+          @internal_socket_path = fetch(:socket_path) # needed for ERB
+          @application          = fetch(:application) # needed for ERB
           template_path = File.expand_path("./templates/deploy/#{config_file}.erb")
           current_path  = Pathname.new("#{fetch(:deploy_to)}/current")
           generated_config_file = ERB.new(File.new(template_path).read).result(binding)

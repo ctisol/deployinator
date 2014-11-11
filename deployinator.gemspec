@@ -1,7 +1,7 @@
 Gem::Specification.new do |s|
   s.name        = 'deployinator'
   s.version     = '0.0.1'
-  s.date        = '2014-11-06'
+  s.date        = '2014-11-10'
   s.summary     = "Deploy Applications"
   s.description = "An Opinionated Deployment gem"
   s.authors     = ["david amick"]
@@ -11,8 +11,10 @@ Gem::Specification.new do |s|
     "lib/deployinator/deploy.rb",
     "lib/deployinator/config.rb",
     "lib/deployinator/examples/Capfile",
-    "lib/deployinator/examples/deploy.rb",
-    "lib/deployinator/examples/deploy_staging.rb",
+    "lib/deployinator/examples/config/deploy.rb",
+    "lib/deployinator/examples/config/deploy_deployinator.rb",
+    "lib/deployinator/examples/config/deploy/staging.rb",
+    "lib/deployinator/examples/config/deploy/staging_deployinator.rb",
     "lib/deployinator/examples/Dockerfile",
     "lib/deployinator/examples/deployer_authorized_keys.erb",
     "lib/deployinator/examples/application_unicorn.rb.erb",
