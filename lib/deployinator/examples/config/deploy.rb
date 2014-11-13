@@ -4,9 +4,12 @@ lock '3.2.1'
 set :application, 'my_app_name'
 set :repo_url, 'git@example.com:me/my_repo.git'
 
-## Don't ask this here, only in staging or other non-production <stage>.rb files.
 # Default branch is :master
-# ask :branch, proc { `git rev-parse --abbrev-ref HEAD`.chomp }.call
+# Always use the master branch in production:
+set :current_stage, -> { fetch(:stage).to_s.strip }
+unless fetch(:current_stage) == "production"
+  ask :branch, proc { `git rev-parse --abbrev-ref HEAD`.chomp }.call
+end
 
 # Default deploy_to directory is /var/www/my_app
 # set :deploy_to, '/var/www/my_app'

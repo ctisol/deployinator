@@ -12,6 +12,8 @@ namespace :deploy do
       "-e", "PATH=#{fetch(:deploy_to)}/shared/bundle/bin:$PATH",
       "--entrypoint", "#{fetch(:deploy_to)}/shared/bundle/bin/bundle",
       "--volume #{fetch(:deploy_to)}:#{fetch(:deploy_to)}:rw",
+      "--volume /etc/passwd:/etc/passwd:ro",
+      "--volume /etc/group:/etc/group:ro",
       fetch(:ruby_image_name)
     ].join(' ')
   end
@@ -25,58 +27,65 @@ namespace :deploy do
   # Append dependancy to existing cleanup task
   task :cleanup => :set_rm_command_map
 
-  # Overwrite :assets:precompile to use docker
-  Rake::Task["deploy:assets:precompile"].clear
-  namespace :assets do
-    task :precompile do
+  # If defined, overwrite :assets:precompile to use docker
+  if Rake::Task.task_defined?("deploy:assets:precompile")
+    Rake::Task["deploy:assets:precompile"].clear
+    namespace :assets do
+      task :precompile do
+        on roles(fetch(:assets_roles)) do
+          execute(
+            "docker", "run", "--rm", "--tty",
+            "-w", fetch(:release_path, "#{fetch(:deploy_to)}/current"),
+            "--link", "#{fetch(:postgres_container_name)}:postgres",
+            "--entrypoint", "#{fetch(:deploy_to)}/shared/bundle/bin/rake",
+            "--volume", "#{fetch(:deploy_to)}:#{fetch(:deploy_to)}:rw",
+            fetch(:ruby_image_name), "assets:precompile"
+          )
+        end
+      end
+    end
+  end
+
+  # If defined, overwrite :cleanup_assets to use docker
+  if Rake::Task.task_defined?("deploy:cleanup_assets")
+    Rake::Task["deploy:cleanup_assets"].clear
+    desc 'Cleanup expired assets'
+    task :cleanup_assets => [:set_rails_env] do
       on roles(fetch(:assets_roles)) do
         execute(
           "docker", "run", "--rm", "--tty",
+          "-e", "RAILS_ENV=#{fetch(:rails_env)}",
           "-w", fetch(:release_path, "#{fetch(:deploy_to)}/current"),
-          "--entrypoint", "#{fetch(:deploy_to)}/shared/bundle/bin/rake",
+          "--entrypoint", "#{fetch(:deploy_to)}/shared/bundle/bin/bundle",
           "--volume", "#{fetch(:deploy_to)}:#{fetch(:deploy_to)}:rw",
-          fetch(:ruby_image_name), "assets:precompile"
+          fetch(:ruby_image_name), "exec", "rake", "assets:clean"
         )
       end
     end
   end
 
-  # Overwrite :cleanup_assets to use docker
-  Rake::Task["deploy:cleanup_assets"].clear
-  desc 'Cleanup expired assets'
-  task :cleanup_assets => [:set_rails_env] do
-    on roles(fetch(:assets_roles)) do
-      execute(
-        "docker", "run", "--rm", "--tty",
-        "-e", "RAILS_ENV=#{fetch(:rails_env)}",
-        "-w", fetch(:release_path, "#{fetch(:deploy_to)}/current"),
-        "--entrypoint", "#{fetch(:deploy_to)}/shared/bundle/bin/bundle",
-        "--volume", "#{fetch(:deploy_to)}:#{fetch(:deploy_to)}:rw",
-        fetch(:ruby_image_name), "exec", "rake", "assets:clean"
-      )
-    end
-  end
-
-  # Overwrite :migrate to use docker
-  Rake::Task["deploy:migrate"].clear
-  desc 'Runs rake db:migrate if migrations are set'
-  task :migrate => [:set_rails_env, :ensure_running_postgres] do
-    on primary fetch(:migration_role) do
-      conditionally_migrate = fetch(:conditionally_migrate)
-      info '[deploy:migrate] Checking changes in /db/migrate' if conditionally_migrate
-      if conditionally_migrate && test("diff -q #{release_path}/db/migrate #{current_path}/db/migrate")
-        info '[deploy:migrate] Skip `deploy:migrate` (nothing changed in db/migrate)'
-      else
-        info '[deploy:migrate] Run `rake db:migrate`' if conditionally_migrate
-        execute(
-          "docker", "run", "--rm", "--tty",
-          "--link", "#{fetch(:postgres_container_name)}:postgres",
-          "--volume", "#{fetch(:deploy_to)}:#{fetch(:deploy_to)}:rw",
-          "-e", "RAILS_ENV=#{fetch(:rails_env)}",
-          "--entrypoint", "#{fetch(:deploy_to)}/shared/bundle/bin/rake",
-          "-w", fetch(:release_path, "#{fetch(:deploy_to)}/current"),
-          fetch(:ruby_image_name), "db:migrate"
-        )
+  # If defined, overwrite :migrate to use docker
+  if Rake::Task.task_defined?("deploy:migrate")
+    Rake::Task["deploy:migrate"].clear
+    desc 'Runs rake db:migrate if migrations are set'
+    task :migrate => [:set_rails_env, :ensure_running_postgres] do
+      on primary fetch(:migration_role) do
+        conditionally_migrate = fetch(:conditionally_migrate)
+        info '[deploy:migrate] Checking changes in /db/migrate' if conditionally_migrate
+        if conditionally_migrate && test("diff -q #{release_path}/db/migrate #{current_path}/db/migrate")
+          info '[deploy:migrate] Skip `deploy:migrate` (nothing changed in db/migrate)'
+        else
+          info '[deploy:migrate] Run `rake db:migrate`' if conditionally_migrate
+          execute(
+            "docker", "run", "--rm", "--tty",
+            "--link", "#{fetch(:postgres_container_name)}:postgres",
+            "--volume", "#{fetch(:deploy_to)}:#{fetch(:deploy_to)}:rw",
+            "-e", "RAILS_ENV=#{fetch(:rails_env)}",
+            "--entrypoint", "#{fetch(:deploy_to)}/shared/bundle/bin/rake",
+            "-w", fetch(:release_path, "#{fetch(:deploy_to)}/current"),
+            fetch(:ruby_image_name), "db:migrate"
+          )
+        end
       end
     end
   end
@@ -257,8 +266,8 @@ namespace :deploy do
           execute "chown", "-R", "#{fetch(:www_data_user_id)}:#{fetch(:www_data_user_id)}", directory
         end
         execute "chown", "-R", "#{fetch(:deployer_user_id)}:#{fetch(:deployer_user_id)}", "#{fetch(:deploy_to)}/shared/bundle"
+        execute("rm", "-f", "#{fetch(:external_socket_path)}/unicorn.pid")
       end
-      execute("rm", "-f", "#{fetch(:external_socket_path)}/unicorn.pid")
       execute("docker", "run", fetch(:docker_run_bluepill_command))
     end
   end

@@ -6,12 +6,6 @@ else
   set :scm, :git
 end
 
-# Always use the master branch in production:
-set :current_stage, -> { fetch(:stage).to_s.strip }
-unless fetch(:current_stage) == "production"
-  ask :branch, proc { `git rev-parse --abbrev-ref HEAD`.chomp }.call
-end
-
 ## The values in this file are not meant to be changed and shouldn't
 ##  need to be under the majority of circumstances:
 
