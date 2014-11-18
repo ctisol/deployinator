@@ -221,7 +221,7 @@ namespace :deploy do
   end
   before 'bundler:install', 'deploy:install_bundler'
 
-  desc 'Restart application'
+  desc 'Restart application using bluepill restart inside the docker container.'
   task :restart => [:set_www_data_user_id, :install_config_files] do
     on roles(:app), in: :sequence, wait: 5 do
       if test "docker", "inspect", fetch(:ruby_container_name), "&>", "/dev/null"
@@ -229,8 +229,39 @@ namespace :deploy do
             "--format='{{.State.Restarting}}'",
             fetch(:ruby_container_name)).strip == "true"
           execute("docker", "stop", fetch(:ruby_container_name))
-          execute("docker", "wait", fetch(:ruby_container_name))
         end
+        if (capture "docker", "inspect",
+            "--format='{{.State.Running}}'",
+            fetch(:ruby_container_name)).strip == "true"
+          execute(
+            "docker", "exec", "--tty",
+            fetch(:ruby_container_name),
+            "#{fetch(:deploy_to)}/shared/bundle/bin/bluepill",
+            fetch(:application), "restart"
+          )
+        end
+      else
+        as :root do
+          paths = [
+            fetch(:external_socket_path),
+            "#{fetch(:deploy_to)}/current/public",
+            "#{fetch(:deploy_to)}/shared/tmp",
+            "#{fetch(:deploy_to)}/shared/log/production.log"
+          ].join(' ')
+          execute "chown", "-R", "#{fetch(:www_data_user_id)}:#{fetch(:www_data_user_id)}", paths
+          execute "chown", "-R", "#{fetch(:deployer_user_id)}:#{fetch(:deployer_user_id)}", "#{fetch(:deploy_to)}/shared/bundle"
+          execute("rm", "-f", "#{fetch(:external_socket_path)}/unicorn.pid")
+        end
+        execute("docker", "run", fetch(:docker_run_bluepill_command))
+      end
+    end
+  end
+  after :publishing, :restart
+
+  desc 'Restart application by recreating the docker container.'
+  namespace :restart do
+    task :force do
+      on roles(:app), in: :sequence, wait: 5 do
         if (capture "docker", "inspect",
             "--format='{{.State.Running}}'",
             fetch(:ruby_container_name)).strip == "true"
@@ -241,10 +272,9 @@ namespace :deploy do
             fetch(:application), "stop"
           )
           sleep 5
-          execute("docker", "stop", fetch(:ruby_container_name))
-          execute("docker", "wait", fetch(:ruby_container_name))
         end
-        sleep 2
+        execute("docker", "stop", fetch(:ruby_container_name))
+        execute("docker", "wait", fetch(:ruby_container_name))
         begin
           execute("docker", "rm",   fetch(:ruby_container_name))
         rescue
@@ -252,29 +282,17 @@ namespace :deploy do
           begin
             execute("docker", "rm",   fetch(:ruby_container_name))
           rescue
-            fatal "We were not able to remove the container for some reason. Try running 'cap <stage> deploy:restart' again."
+            fatal "We were not able to remove the container for some reason. Try running 'cap <stage> deploy:restart:force' again."
           end
         end
+        Rake::Task['deploy:restart'].invoke
       end
-      as :root do
-        [
-          fetch(:external_socket_path),
-          "#{fetch(:deploy_to)}/current/public",
-          "#{fetch(:deploy_to)}/shared/tmp",
-          "#{fetch(:deploy_to)}/shared/log/production.log"
-        ].each do |directory|
-          execute "chown", "-R", "#{fetch(:www_data_user_id)}:#{fetch(:www_data_user_id)}", directory
-        end
-        execute "chown", "-R", "#{fetch(:deployer_user_id)}:#{fetch(:deployer_user_id)}", "#{fetch(:deploy_to)}/shared/bundle"
-        execute("rm", "-f", "#{fetch(:external_socket_path)}/unicorn.pid")
-      end
-      execute("docker", "run", fetch(:docker_run_bluepill_command))
     end
   end
-  after :publishing, :restart
 
   after :publishing, :check_nginx_running do
     on primary fetch(:migration_role) do
+      # TODO fix false negative when nginx_container_name is unset
       if test "docker", "inspect", fetch(:nginx_container_name), "&>", "/dev/null"
         if (capture "docker", "inspect",
             "--format='{{.State.Running}}'",
