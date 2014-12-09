@@ -11,9 +11,11 @@ namespace :deploy do
       "-e", "GEM_PATH=#{fetch(:deploy_to)}/shared/bundle",
       "-e", "PATH=#{fetch(:deploy_to)}/shared/bundle/bin:$PATH",
       "--entrypoint", "#{fetch(:deploy_to)}/shared/bundle/bin/bundle",
+      "--volume $SSH_AUTH_SOCK:/ssh-agent --env SSH_AUTH_SOCK=/ssh-agent",
       "--volume #{fetch(:deploy_to)}:#{fetch(:deploy_to)}:rw",
       "--volume /etc/passwd:/etc/passwd:ro",
       "--volume /etc/group:/etc/group:ro",
+      "--volume /home:/home:rw",
       fetch(:ruby_image_name)
     ].join(' ')
   end
@@ -224,6 +226,15 @@ namespace :deploy do
   desc 'Restart application using bluepill restart inside the docker container.'
   task :restart => [:set_www_data_user_id, :install_config_files] do
     on roles(:app), in: :sequence, wait: 5 do
+      as :root do
+        paths = [
+          fetch(:external_socket_path),
+          "#{fetch(:deploy_to)}/current/public",
+          "#{fetch(:deploy_to)}/shared/tmp",
+          "#{fetch(:deploy_to)}/shared/log/production.log"
+        ].join(' ')
+        execute "chown", "-R", "#{fetch(:www_data_user_id)}:#{fetch(:www_data_user_id)}", paths
+      end
       if test "docker", "inspect", fetch(:ruby_container_name), "&>", "/dev/null"
         if (capture "docker", "inspect",
             "--format='{{.State.Restarting}}'",
@@ -242,15 +253,8 @@ namespace :deploy do
         end
       else
         as :root do
-          paths = [
-            fetch(:external_socket_path),
-            "#{fetch(:deploy_to)}/current/public",
-            "#{fetch(:deploy_to)}/shared/tmp",
-            "#{fetch(:deploy_to)}/shared/log/production.log"
-          ].join(' ')
-          execute "chown", "-R", "#{fetch(:www_data_user_id)}:#{fetch(:www_data_user_id)}", paths
-          execute "chown", "-R", "#{fetch(:deployer_user_id)}:#{fetch(:deployer_user_id)}", "#{fetch(:deploy_to)}/shared/bundle"
           execute("rm", "-f", "#{fetch(:external_socket_path)}/unicorn.pid")
+g         execute "chown", "-R", "#{fetch(:deployer_user_id)}:#{fetch(:deployer_user_id)}", "#{fetch(:deploy_to)}/shared/bundle"
         end
         execute("docker", "run", fetch(:docker_run_bluepill_command))
       end
