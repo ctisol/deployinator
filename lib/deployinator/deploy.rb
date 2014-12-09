@@ -29,6 +29,22 @@ namespace :deploy do
   # Append dependancy to existing cleanup task
   task :cleanup => :set_rm_command_map
 
+  if Rake::Task.task_defined?("bundler:install")
+    #desc 'Copies .git folder'
+    task :copy_git do
+      unless ENV['from_local'] == "true"
+        on roles(:app) do
+          as :root do
+            within release_path do
+              execute :cp, '-r', repo_path, '.git' 
+            end
+          end
+        end
+      end 
+    end
+    before 'bundler:install', 'deploy:copy_git'
+  end
+
   # If defined, overwrite :assets:precompile to use docker
   if Rake::Task.task_defined?("deploy:assets:precompile")
     Rake::Task["deploy:assets:precompile"].clear
@@ -254,7 +270,7 @@ namespace :deploy do
       else
         as :root do
           execute("rm", "-f", "#{fetch(:external_socket_path)}/unicorn.pid")
-g         execute "chown", "-R", "#{fetch(:deployer_user_id)}:#{fetch(:deployer_user_id)}", "#{fetch(:deploy_to)}/shared/bundle"
+          execute "chown", "-R", "#{fetch(:deployer_user_id)}:#{fetch(:deployer_user_id)}", "#{fetch(:deploy_to)}/shared/bundle"
         end
         execute("docker", "run", fetch(:docker_run_bluepill_command))
       end
