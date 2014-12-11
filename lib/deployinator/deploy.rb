@@ -34,10 +34,8 @@ namespace :deploy do
     task :copy_git do
       unless ENV['from_local'] == "true"
         on roles(:app) do
-          as :root do
-            within release_path do
-              execute :cp, '-r', repo_path, '.git' 
-            end
+          within release_path do
+            execute :cp, '-r', repo_path, '.git' 
           end
         end
       end 
@@ -49,10 +47,10 @@ namespace :deploy do
   if Rake::Task.task_defined?("deploy:assets:precompile")
     Rake::Task["deploy:assets:precompile"].clear
     namespace :assets do
-      task :precompile do
+      task :precompile => :set_deployer_user_id do
         on roles(fetch(:assets_roles)) do
           execute(
-            "docker", "run", "--rm", "--tty",
+            "docker", "run", "--rm", "--tty", "--user", fetch(:deployer_user_id),
             "-w", fetch(:release_path, "#{fetch(:deploy_to)}/current"),
             "--link", "#{fetch(:postgres_container_name)}:postgres",
             "--entrypoint", "#{fetch(:deploy_to)}/shared/bundle/bin/rake",
@@ -245,7 +243,6 @@ namespace :deploy do
       as :root do
         paths = [
           fetch(:external_socket_path),
-          "#{fetch(:deploy_to)}/current/public",
           "#{fetch(:deploy_to)}/shared/tmp",
           "#{fetch(:deploy_to)}/shared/log/production.log"
         ].join(' ')
