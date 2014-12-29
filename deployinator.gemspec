@@ -1,7 +1,7 @@
 Gem::Specification.new do |s|
   s.name        = 'deployinator'
-  s.version     = '0.0.7'
-  s.date        = '2014-12-11'
+  s.version     = '0.1.0'
+  s.date        = '2014-12-29'
   s.summary     = "Deploy Applications"
   s.description = "An Opinionated Deployment gem"
   s.authors     = ["david amick"]
@@ -9,16 +9,16 @@ Gem::Specification.new do |s|
   s.files       = [
     "lib/deployinator.rb",
     "lib/deployinator/deploy.rb",
+    "lib/deployinator/check.rb",
     "lib/deployinator/config.rb",
+    "lib/deployinator/helpers.rb",
     "lib/deployinator/examples/Capfile",
     "lib/deployinator/examples/config/deploy.rb",
-    "lib/deployinator/examples/config/deploy_deployinator.rb",
     "lib/deployinator/examples/config/deploy/staging.rb",
-    "lib/deployinator/examples/config/deploy/staging_deployinator.rb",
     "lib/deployinator/examples/Dockerfile",
-    "lib/deployinator/examples/deployer_authorized_keys.erb",
-    "lib/deployinator/examples/application_unicorn.rb.erb",
-    "lib/deployinator/examples/application_bluepill.rb.erb"
+    "lib/deployinator/examples/deployment_authorized_keys.erb",
+    "lib/deployinator/examples/unicorn.rb.erb",
+    "lib/deployinator/examples/bluepill.rb.erb"
   ]
   s.add_runtime_dependency 'capistrano', '= 3.2.1'
   s.homepage    =
