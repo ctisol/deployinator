@@ -28,6 +28,7 @@ after_fork do |server, worker|
 end
 
 before_exec do |server|
+  File.umask 0007
   # Configure bundler to use proper paths if app provides a Gemfile
   if(File.exists?("#{current_path}/Gemfile"))
     paths = ENV["PATH"].to_s.split(':')

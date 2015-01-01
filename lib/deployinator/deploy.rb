@@ -188,6 +188,19 @@ namespace :deploy do
     end
   end
 
+  task :print_rails_console do
+    run_locally do
+      command = [
+        "docker", "exec", "--interactive", "--tty",
+        fetch(:ruby_container_name),
+        "bash", "-c", "\"cd", current_path, "&&",
+        shared_path.join('bundle', 'bin', 'rails'),
+        "console", "#{fetch(:rails_env)}\""
+      ].join(' ')
+      info command
+    end
+  end
+
   after 'deploy:finished', :success_message do
     run_locally do
       info "That was a successful deploy!"

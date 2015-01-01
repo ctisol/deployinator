@@ -9,7 +9,7 @@ set :webserver_username,          "www-data" # less trusted web server user with
 
 set :webserver_writeable_dirs,    [shared_path.join('run'), shared_path.join("tmp"), shared_path.join("log")]
 set :webserver_executable_dirs,   [shared_path.join("bundle", "bin")]
-set :ignore_permissions_dirs,     [shared_path.join("postgres")]
+set :ignore_permissions_dirs,     [shared_path.join("postgres"), shared_path.join("nginx")]
 set :webserver_socket_path,       shared_path.join('run')
 
 # Default branch is :master

@@ -1,7 +1,7 @@
 Gem::Specification.new do |s|
   s.name        = 'deployinator'
-  s.version     = '0.1.0'
-  s.date        = '2014-12-29'
+  s.version     = '0.1.1'
+  s.date        = '2014-12-31'
   s.summary     = "Deploy Applications"
   s.description = "An Opinionated Deployment gem"
   s.authors     = ["david amick"]
