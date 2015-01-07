@@ -32,7 +32,7 @@ namespace :deploy do
     end
 
     desc 'Ensure all deployinator specific settings are set, and warn and raise if not.'
-    task :settings do
+    before 'deploy:check', :settings do
       {
         (File.dirname(__FILE__) + "/examples/config/deploy.rb") => 'config/deploy.rb',
         (File.dirname(__FILE__) + "/examples/config/deploy/staging.rb") => "config/deploy/#{fetch(:stage)}.rb"

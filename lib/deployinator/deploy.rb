@@ -22,10 +22,12 @@ namespace :deploy do
       task :precompile => ['deployinator:deployment_user'] do
         on roles(fetch(:assets_roles)) do
           execute(
-            "docker", "run", "--rm", "--tty", "--user", fetch(:deployment_user_id),
+            "docker", "run", "--rm", "--tty", "--user", fetch(:webserver_username),
             "-w", release_path,
             "--link", "#{fetch(:postgres_container_name)}:postgres",
             "--entrypoint", "/bin/bash",
+            "--volume", "/etc/passwd:/etc/passwd:ro",
+            "--volume", "/etc/group:/etc/group:ro",
             "--volume", "#{fetch(:deploy_to)}:#{fetch(:deploy_to)}:rw",
             fetch(:ruby_image_name), "-c",
             "\"umask", "0007", "&&", "#{shared_path.join('bundle', 'bin', 'rake')}",

@@ -58,8 +58,20 @@ namespace :deployinator do
           ["-not", "-path", "\"#{dir}\"", "-not", "-path", "\"#{dir}/*\""]
         end
 
+        chown_ignore_options = fetch(:webserver_owned_dirs).collect do |dir|
+          ["-not", "-path", "\"#{dir}\"", "-not", "-path", "\"#{dir}/*\""]
+        end
+
+        # chown webserver owned
+        fetch(:webserver_owned_dirs).each do |dir|
+          if directory_exists?(dir)
+            execute "find", dir, ignore_options,
+              "-exec", "chown", "#{fetch(:webserver_user_id)}:#{fetch(:webserver_user_id)}", "{}", "+"
+          end
+        end
+
         # chown
-        execute "find", fetch(:deploy_to), ignore_options,
+        execute "find", fetch(:deploy_to), ignore_options, chown_ignore_options,
           "-exec", "chown", "#{fetch(:deployment_user_id)}:#{fetch(:webserver_user_id)}", "{}", "+"
 
         # chmod executable
