@@ -4,7 +4,7 @@ MAINTAINER david amick <docker@davidamick.com>
 
 ENV DEBIAN_FRONTEND noninteractive
 
-RUN /bin/bash -c "apt-get update -qq && apt-get install -qy wget curl bzip2 make gcc build-essential patch zlib1g-dev libssl-dev libreadline-gplv2-dev libxml2 libxml2-dev libxslt1-dev nodejs postgresql-contrib libpq-dev git-core libmagickwand-dev"
+RUN /bin/bash -c "apt-get update -qq && apt-get install -qy wget curl bzip2 make gcc build-essential patch zlib1g-dev libssl-dev libreadline-gplv2-dev libxml2 libxml2-dev libxslt1-dev nodejs postgresql-contrib libpq-dev git-core libmagickwand-dev imagemagick"
 RUN wget -O ruby-enterprise-1.8.7-2012.02.tar.gz http://rubyenterpriseedition.googlecode.com/files/ruby-enterprise-1.8.7-2012.02.tar.gz
 RUN tar xzvf ruby-enterprise-1.8.7-2012.02.tar.gz
 RUN sed -i'' "1672s/.*/void \*(\* volatile __memalign_hook)(size_t, size_t, const void \*) = MemalignOverride\;/" ruby-enterprise-1.8.7-2012.02/source/distro/google-perftools-1.7/src/tcmalloc.cc
