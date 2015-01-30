@@ -1,4 +1,3 @@
-# vi: ft=config
 FROM ubuntu:12.04
 MAINTAINER david amick <docker@davidamick.com>
 

@@ -1,6 +1,7 @@
 set :deploy_log_level,            "debug"
 set :webserver_socket_path,       -> { shared_path.join('run') }
 set :deploy_templates_path,       "templates/deploy"
+set :jobs_app_name,               "jobs"
 
 # Default deploy_to directory is /var/www/my_app
 # set :deploy_to, '/var/www/my_app'
@@ -80,6 +81,45 @@ def deploy_run_bluepill(host)
     fetch(:ruby_image_name), "load",
     current_path.join('config', 'bluepill.rb')
   )
+end
+def deploy_bluepill_restart(host)
+  execute("docker", "exec", "--tty",
+    fetch(:ruby_container_name),
+    shared_path.join('bundle', 'bin', 'bluepill'),
+    fetch(:application), "restart")
+end
+def deploy_bluepill_stop(host)
+  execute("docker", "exec", "--tty",
+    fetch(:ruby_container_name),
+    shared_path.join('bundle', 'bin', 'bluepill'),
+    fetch(:application), "stop")
+end
+def deploy_run_bluepill_jobs(host)
+  execute(
+    "docker", "run", "--tty", "--detach",
+    "--name", fetch(:ruby_jobs_container_name),
+    "-e", "GEM_HOME=#{shared_path.join('bundle')}",
+    "-e", "GEM_PATH=#{shared_path.join('bundle')}",
+    "-e", "BUNDLE_GEMFILE=#{current_path.join('Gemfile')}",
+    "-e", "PATH=#{shared_path.join('bundle', 'bin')}:$PATH",
+    "--restart", "always", "--memory", "#{fetch(:ruby_jobs_container_max_mem_mb)}m",
+    "--volume", "#{fetch(:deploy_to)}:#{fetch(:deploy_to)}:rw",
+    "--entrypoint", shared_path.join('bundle', 'bin', 'bluepill'),
+    fetch(:ruby_image_name), "load",
+    current_path.join('config', 'bluepill_jobs.rb')
+  )
+end
+def deploy_bluepill_jobs_restart(host)
+  execute("docker", "exec", "--tty",
+    fetch(:ruby_jobs_container_name),
+    shared_path.join('bundle', 'bin', 'bluepill'),
+    fetch(:jobs_app_name), "restart")
+end
+def deploy_bluepill_jobs_stop(host)
+  execute("docker", "exec", "--tty",
+    fetch(:ruby_jobs_container_name),
+    shared_path.join('bundle', 'bin', 'bluepill'),
+    fetch(:jobs_app_name), "stop")
 end
 def deploy_run_cadvisor(host)
   execute(
@@ -171,16 +211,4 @@ def deploy_install_bundler(host)
     "--install-dir", "#{shared_path.join('bundle')}",
     "--bindir", shared_path.join('bundle', 'bin'),
     "--no-ri", "--no-rdoc", "--quiet", "bundler", "-v'#{fetch(:bundler_version)}'\"")
-end
-def deploy_bluepill_restart(host)
-  execute("docker", "exec", "--tty",
-    fetch(:ruby_container_name),
-    shared_path.join('bundle', 'bin', 'bluepill'),
-    fetch(:application), "restart")
-end
-def deploy_bluepill_stop(host)
-  execute("docker", "exec", "--tty",
-    fetch(:ruby_container_name),
-    shared_path.join('bundle', 'bin', 'bluepill'),
-    fetch(:application), "stop")
 end

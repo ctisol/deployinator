@@ -1,7 +1,7 @@
 namespace :deploy do
   namespace :check do
 
-    task :bundle_command_map => ['deployinator:deployment_user'] do
+    task :bundle_command_map do
       set :bundle_binstubs, -> { shared_path.join('bundle', 'bin') }
       set :bundle_gemfile,  -> { release_path.join('Gemfile') }
       SSHKit.config.command_map[:bundle] = sshkit_bundle_command_map
@@ -40,15 +40,15 @@ namespace :deploy do
     # TODO make this better
     before 'deploy:check', :templates do
       run_locally do
-        keys_template     = File.expand_path("./#{fetch(:deploy_templates_path)}/deployment_authorized_keys.erb")
-        bluepill_template = File.expand_path("./#{fetch(:deploy_templates_path)}/bluepill.rb.erb")
-        unicorn_template  = File.expand_path("./#{fetch(:deploy_templates_path)}/unicorn.rb.erb")
-        {
-          "You need a #{fetch(:deploy_templates_path)}/deployment_authorized_keys.erb file."          => keys_template,
-          "You need a #{fetch(:deploy_templates_path)}/bluepill.rb.erb file."  => bluepill_template,
-          "You need a #{fetch(:deploy_templates_path)}/unicorn.rb.erb file."   => unicorn_template,
-        }.each do |message, file|
-          fatal(message) and raise unless File.exists? file
+        path = fetch(:deploy_templates_path)
+        keys_template          = File.expand_path("./#{path}/deployment_authorized_keys.erb")
+        bluepill_template      = File.expand_path("./#{path}/bluepill.rb.erb")
+        bluepill_jobs_template = File.expand_path("./#{path}/bluepill_jobs.rb.erb")
+        unicorn_template       = File.expand_path("./#{path}/unicorn.rb.erb")
+        templates = [keys_template, bluepill_template, unicorn_template]
+        templates += [bluepill_jobs_template] if fetch(:use_jobs)
+        templates.each do |file|
+          fatal("You need a #{file} template file.") and raise unless File.exists? file
         end
       end
     end

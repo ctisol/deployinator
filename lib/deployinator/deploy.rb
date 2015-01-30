@@ -35,7 +35,7 @@ namespace :deploy do
     # Overwrite :assets:precompile to use docker
     Rake::Task["deploy:assets:precompile"].clear_actions
     namespace :assets do
-      task :precompile => ['deployinator:deployment_user'] do
+      task :precompile do
         on roles(fetch(:assets_roles)) do |host|
           deploy_assets_precompile(host)
         end
@@ -72,7 +72,7 @@ namespace :deploy do
     end
   end
 
-  task :install_bundler => ['deployinator:deployment_user'] do
+  task :install_bundler do
     on roles(:app) do |host|
       unless file_exists?(shared_path.join('bundle', 'bin', 'bundle'))
         deploy_install_bundler(host)
@@ -82,7 +82,7 @@ namespace :deploy do
   before 'bundler:install', 'deploy:install_bundler'
 
   desc 'Restart application using bluepill restart inside the docker container.'
-  task :restart => ['deployinator:webserver_user', :install_config_files] do
+  task :restart => [:install_config_files, 'deploy:check:settings'] do
     on roles(:app) do |host|
       name = fetch(:ruby_container_name)
       if container_exists?(name)
@@ -108,22 +108,23 @@ namespace :deploy do
 
   desc 'Restart application by recreating the docker container.'
   namespace :restart do
-    task :force do
+    task :force => [:install_config_files, 'deploy:check:settings'] do
       on roles(:app) do |host|
-        if container_exists?(fetch(:ruby_container_name))
-          if container_is_running?(fetch(:ruby_container_name))
+        name = fetch(:ruby_container_name)
+        if container_exists?(name)
+          if container_is_running?(name)
             deploy_bluepill_stop(host)
             sleep 5
-            execute("docker", "stop", fetch(:ruby_container_name))
-            execute("docker", "wait", fetch(:ruby_container_name))
+            execute("docker", "stop", name)
+            execute("docker", "wait", name)
           else
           end
           begin
-            execute("docker", "rm",   fetch(:ruby_container_name))
+            execute("docker", "rm",   name)
           rescue
             sleep 5
             begin
-              execute("docker", "rm",   fetch(:ruby_container_name))
+              execute("docker", "rm",   name)
             rescue
               fatal "We were not able to remove the container for some reason. Try running 'cap <stage> deploy:restart:force' again."
             end
@@ -143,12 +144,9 @@ namespace :deploy do
 #    end
 #  end
 
-  task :install_config_files => ['deployinator:deployment_user', 'deployinator:webserver_user'] do
+  task :install_config_files do
     on roles(:app) do |host|
-      set :bluepill_config, -> { "bluepill.rb" }
-      set :unicorn_config,  -> { "unicorn.rb" }
-      set :socket_path,     -> { fetch(:webserver_socket_path) }
-      [fetch(:bluepill_config), fetch(:unicorn_config)].each do |config_file|
+      ["bluepill.rb", "unicorn.rb"].each do |config_file|
         template_path = File.expand_path("./#{fetch(:deploy_templates_path)}/#{config_file}.erb")
         generated_config_file = ERB.new(File.new(template_path).read).result(binding)
         set :final_path, -> { release_path.join('config', config_file) }

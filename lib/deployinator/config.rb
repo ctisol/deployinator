@@ -18,22 +18,26 @@ namespace :deployinator do
   desc 'Write example config files'
   task :write_example_configs do
     run_locally do
-      execute "mkdir", "-p", "config/deploy", fetch(:deploy_templates_path, 'templates/deploy')
+      path = fetch(:deploy_templates_path, 'templates/deploy')
+      execute "mkdir", "-p", "config/deploy", path
       {
         "examples/Capfile"                        => "Capfile#{fetch(:example)}",
         "examples/config/deploy.rb"               => "config/deploy#{fetch(:example)}.rb",
         "examples/config/deploy/staging.rb"       => "config/deploy/staging#{fetch(:example)}.rb",
-        "examples/Dockerfile"                     => "#{fetch(:deploy_templates_path, 'templates/deploy')}/Dockerfile#{fetch(:example)}",
-        "examples/deployment_authorized_keys.erb" => "#{fetch(:deploy_templates_path, 'templates/deploy')}/deployment_authorized_keys#{fetch(:example)}.erb",
-        "examples/unicorn.rb.erb"                 => "#{fetch(:deploy_templates_path, 'templates/deploy')}/unicorn#{fetch(:example)}.rb.erb",
-        "examples/bluepill.rb.erb"                => "#{fetch(:deploy_templates_path, 'templates/deploy')}/bluepill#{fetch(:example)}.rb.erb"
+        "examples/Dockerfile"                     => "#{path}/Dockerfile#{fetch(:example)}",
+        "examples/deployment_authorized_keys.erb" =>
+          "#{path}/deployment_authorized_keys#{fetch(:example)}.erb",
+        "examples/unicorn.rb.erb"                 => "#{path}/unicorn#{fetch(:example)}.rb.erb",
+        "examples/bluepill.rb.erb"                => "#{path}/bluepill#{fetch(:example)}.rb.erb",
+        "examples/bluepill_jobs.rb.erb"           => "#{path}/bluepill_jobs#{fetch(:example)}.rb.erb"
       }.each do |source, destination|
         config = File.read(File.dirname(__FILE__) + "/#{source}")
         File.open("./#{destination}", 'w') { |f| f.write(config) }
         info "Wrote '#{destination}'"
       end
       unless fetch(:example).empty?
-        info "Now remove the '#{fetch(:example)}' portion of their names or diff with existing files and add the needed lines."
+        info("Now remove the '#{fetch(:example)}' portion of their names " +
+          "or diff with existing files and add the needed lines.")
       end
     end
   end
