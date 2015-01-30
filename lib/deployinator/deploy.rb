@@ -117,7 +117,6 @@ namespace :deploy do
             sleep 5
             execute("docker", "stop", name)
             execute("docker", "wait", name)
-          else
           end
           begin
             execute("docker", "rm",   name)

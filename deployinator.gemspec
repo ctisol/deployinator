@@ -1,7 +1,7 @@
 Gem::Specification.new do |s|
   s.name        = 'deployinator'
   s.version     = '0.1.4'
-  s.date        = '2015-01-23'
+  s.date        = '2015-01-29'
   s.summary     = "Deploy Applications"
   s.description = "Deploy Ruby on Rails using Capistrano and Docker"
   s.authors     = ["david amick"]

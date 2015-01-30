@@ -104,22 +104,10 @@ def deploy_run_bluepill_jobs(host)
     "-e", "PATH=#{shared_path.join('bundle', 'bin')}:$PATH",
     "--restart", "always", "--memory", "#{fetch(:ruby_jobs_container_max_mem_mb)}m",
     "--volume", "#{fetch(:deploy_to)}:#{fetch(:deploy_to)}:rw",
-    "--entrypoint", shared_path.join('bundle', 'bin', 'bluepill'),
-    fetch(:ruby_image_name), "load",
-    current_path.join('config', 'bluepill_jobs.rb')
+    "--entrypoint", shared_path.join('bundle', 'bin', 'rabid_jobs_tasker'),
+    fetch(:ruby_image_name), "--rails_root", current_path,
+    "--environment", fetch(:rails_env), "--pid", "#{fetch(:webserver_socket_path)}/jobs.pid"
   )
-end
-def deploy_bluepill_jobs_restart(host)
-  execute("docker", "exec", "--tty",
-    fetch(:ruby_jobs_container_name),
-    shared_path.join('bundle', 'bin', 'bluepill'),
-    fetch(:jobs_app_name), "restart")
-end
-def deploy_bluepill_jobs_stop(host)
-  execute("docker", "exec", "--tty",
-    fetch(:ruby_jobs_container_name),
-    shared_path.join('bundle', 'bin', 'bluepill'),
-    fetch(:jobs_app_name), "stop")
 end
 def deploy_run_cadvisor(host)
   execute(

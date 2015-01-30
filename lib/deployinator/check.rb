@@ -43,10 +43,8 @@ namespace :deploy do
         path = fetch(:deploy_templates_path)
         keys_template          = File.expand_path("./#{path}/deployment_authorized_keys.erb")
         bluepill_template      = File.expand_path("./#{path}/bluepill.rb.erb")
-        bluepill_jobs_template = File.expand_path("./#{path}/bluepill_jobs.rb.erb")
         unicorn_template       = File.expand_path("./#{path}/unicorn.rb.erb")
         templates = [keys_template, bluepill_template, unicorn_template]
-        templates += [bluepill_jobs_template] if fetch(:use_jobs)
         templates.each do |file|
           fatal("You need a #{file} template file.") and raise unless File.exists? file
         end

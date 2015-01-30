@@ -10,7 +10,6 @@ set :ruby_container_name,             "#{fetch(:domain)}-ruby-bluepill"
 set :ruby_container_max_mem_mb,       "1024"
 set :postgres_port,                   "5432"
 ### deployinator jobs
-set :use_jobs,                        false
 set :ruby_jobs_container_name,        "#{fetch(:domain)}-ruby-bluepill_jobs"
 set :ruby_jobs_container_max_mem_mb,  "512"
 ### ------------------------------------------------------------------
