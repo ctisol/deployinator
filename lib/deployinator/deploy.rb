@@ -175,6 +175,16 @@ namespace :deploy do
     end
   end
 
+  desc "Write Version file on server"
+  after 'deploy:finished', :write_version_file do
+    on roles(:app) do |host|
+      execute "echo", "\"<version>", "<release>#{fetch(:current_revision)}</release>",
+        "<deployed_at>#{Time.now.strftime('%m/%d/%Y at %H:%M %Z')}</deployed_at>",
+        "<branch>#{fetch(:branch)}</branch>",
+        "</version>\"", ">", current_path.join('public', 'version.xml')
+    end
+  end
+
   after 'deploy:finished', :success_message do
     run_locally do
       info "That was a successful deploy!"

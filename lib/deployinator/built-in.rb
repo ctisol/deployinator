@@ -97,6 +97,7 @@ end
 def deploy_run_bluepill_jobs(host)
   execute(
     "docker", "run", "--tty", "--detach",
+    "--user", fetch(:webserver_username),
     "--name", fetch(:ruby_jobs_container_name),
     "-e", "GEM_HOME=#{shared_path.join('bundle')}",
     "-e", "GEM_PATH=#{shared_path.join('bundle')}",
@@ -106,7 +107,7 @@ def deploy_run_bluepill_jobs(host)
     "--volume", "#{fetch(:deploy_to)}:#{fetch(:deploy_to)}:rw",
     "--entrypoint", shared_path.join('bundle', 'bin', 'rabid_jobs_tasker'),
     fetch(:ruby_image_name), "--rails_root", current_path,
-    "--environment", fetch(:rails_env), "--pid", "#{fetch(:webserver_socket_path)}/jobs.pid"
+    "--environment", fetch(:rails_env), "--pid", "#{fetch(:webserver_socket_path)}/jobs.pid", "--maxworkers", "3"
   )
 end
 def deploy_run_cadvisor(host)
