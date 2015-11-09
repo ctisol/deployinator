@@ -25,7 +25,9 @@ namespace :deploy do
       end
     end
   end
-  before 'bundler:install', 'deploy:copy_git'
+  if Rake::Task.task_defined?("bundler:install")
+    before 'bundler:install', 'deploy:copy_git'
+  end
 
   if Rake::Task.task_defined?("deploy:assets:precompile")
     # Overwrite :assets:precompile to use docker
@@ -75,7 +77,9 @@ namespace :deploy do
       end
     end
   end
-  before 'bundler:install', 'deploy:install_bundler'
+  if Rake::Task.task_defined?("bundler:install")
+    before 'bundler:install', 'deploy:install_bundler'
+  end
 
   desc 'Restart application using bluepill restart inside the docker container.'
   task :restart => [:install_config_files, 'deploy:check:settings'] do
@@ -185,6 +189,39 @@ namespace :deploy do
     run_locally do
       info "That was a successful deploy!"
     end
+  end
+
+  # the purpose of this task is to prevent hang during a bundle
+  #   install that needs to reach github for the first time and will otherwise
+  #   block asking "Are you sure you want to continue connecting (yes/no)?"
+  # this is only needed when deploying to a server for the first time using from_local=true.
+  task :add_repo_hostkeys do
+    on roles(:app) do
+      if fetch(:repo_url).include? "@"
+        host = fetch(:repo_url).split(":").shift
+        socket = capture "echo", "$SSH_AUTH_SOCK"
+        with :ssh_auth_sock => socket do
+          if test(
+              "ssh", "-T", "-o", "StrictHostKeyChecking=no", "#{host};",
+              "EXIT_CODE=$?;",
+              "if", "[", "$EXIT_CODE", "-eq", "1", "];",
+                "then", "exit", "0;",
+              "else",
+                "exit", "$EXIT_CODE;",
+              "fi"
+            )
+            info "Successfully added #{host} to known host keys"
+          else
+            fatal "Not able to add #{host}'s ssh keys to the known hosts"
+          end
+        end
+      else
+        warn "Repo URL does not appear to use SSH, not adding to known hosts"
+      end
+    end
+  end
+  if Rake::Task.task_defined?("bundler:install")
+    before 'bundler:install', 'deploy:add_repo_hostkeys'
   end
 
 end

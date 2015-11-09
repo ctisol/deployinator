@@ -33,7 +33,7 @@ end
 
 
 def deployment_user_setup(templates_path)
-  require 'erb' unless defined?(ERB)
+  require 'erb'
   name = fetch(:deployment_username)
   unix_user_add(name) unless unix_user_exists?(name)
   execute "usermod", "-a", "-G", "sudo,docker,#{fetch(:webserver_username)}", name

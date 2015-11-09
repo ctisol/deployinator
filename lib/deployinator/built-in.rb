@@ -69,7 +69,10 @@ set_scm
 def deploy_run_bluepill(host)
   execute(
     "docker", "run", "--tty", "--detach",
+    # "--user", fetch(:webserver_username), TODO find out of this can run as the deployer user instead of root, if so, set the user, if not, fix rails console to su to www-data first
     "--name", fetch(:ruby_container_name),
+    "-e", "APP_STAGE=#{fetch(:stage)}",
+    "-e", "RAILS_ROOT=#{current_path}",
     "-e", "GEM_HOME=#{shared_path.join('bundle')}",
     "-e", "GEM_PATH=#{shared_path.join('bundle')}",
     "-e", "BUNDLE_GEMFILE=#{current_path.join('Gemfile')}",
@@ -82,22 +85,29 @@ def deploy_run_bluepill(host)
   )
 end
 def deploy_bluepill_restart(host)
-  execute("docker", "exec", "--tty",
+  execute(
+    "docker", "exec", "--tty",
     fetch(:ruby_container_name),
     shared_path.join('bundle', 'bin', 'bluepill'),
-    fetch(:application), "restart")
+    fetch(:application), "restart"
+  )
 end
 def deploy_bluepill_stop(host)
-  execute("docker", "exec", "--tty",
+  execute(
+    "docker", "exec", "--tty",
     fetch(:ruby_container_name),
     shared_path.join('bundle', 'bin', 'bluepill'),
-    fetch(:application), "stop")
+    fetch(:application), "stop"
+  )
 end
 def deploy_run_bluepill_jobs(host)
   execute(
     "docker", "run", "--tty", "--detach",
+    "-w", current_path,
     "--user", fetch(:webserver_username),
     "--name", fetch(:ruby_jobs_container_name),
+    "-e", "APP_STAGE=#{fetch(:stage)}",
+    "-e", "RAILS_ROOT=#{current_path}",
     "-e", "GEM_HOME=#{shared_path.join('bundle')}",
     "-e", "GEM_PATH=#{shared_path.join('bundle')}",
     "-e", "BUNDLE_GEMFILE=#{current_path.join('Gemfile')}",
@@ -122,10 +132,13 @@ def deploy_run_cadvisor(host)
     "google/cadvisor:latest"
   )
 end
+# TODO change these both to run as webserver_username
+#   also offer Rails 2.X versions
 def deploy_rails_console(host)
   [
     "ssh", "-t", "#{host}", "\"docker", "exec", "--interactive", "--tty",
     fetch(:ruby_container_name),
+    # "sudo", "-u", fetch(:webserver_username), TODO, find out if running bluepill as www-data works, otherwise add this line
     "bash", "-c", "'cd", current_path, "&&",
     shared_path.join('bundle', 'bin', 'rails'),
     "console", "#{fetch(:rails_env)}'\""
@@ -148,7 +161,7 @@ def sshkit_bundle_command_map
     "-e", "GEM_PATH=#{shared_path.join('bundle')}",
     "-e", "PATH=#{shared_path.join('bundle', 'bin')}:$PATH",
     "--volume", "#{fetch(:deploy_to)}:#{fetch(:deploy_to)}:rw",
-    "--volume", "$SSH_AUTH_SOCK:/ssh-agent --env SSH_AUTH_SOCK=/ssh-agent",
+    "--volume", "$SSH_AUTH_SOCK:/ssh-agent:rw", "--env SSH_AUTH_SOCK=/ssh-agent",
     "--volume", "/home:/home:rw",
     "--volume", "/etc/passwd:/etc/passwd:ro",
     "--volume", "/etc/group:/etc/group:ro",
@@ -157,7 +170,10 @@ def sshkit_bundle_command_map
   ].join(' ')
 end
 def deploy_assets_precompile(host)
-  execute("docker", "run", "--rm", "--tty", "--user", fetch(:webserver_username),
+  execute(
+    "docker", "run", "--rm", "--tty", "--user", fetch(:webserver_username),
+    "-e", "APP_STAGE=#{fetch(:stage)}",
+    "-e", "RAILS_ROOT=#{current_path}",
     "-w", release_path,
     "--volume", "/home:/home:rw",
     "--volume", "/etc/passwd:/etc/passwd:ro",
@@ -166,26 +182,34 @@ def deploy_assets_precompile(host)
     "--entrypoint", "/bin/bash",
     fetch(:ruby_image_name), "-c",
     "\"umask", "0007", "&&", "#{shared_path.join('bundle', 'bin', 'rake')}",
-    "assets:precompile\"")
+    "assets:precompile\""
+  )
 end
 def deploy_assets_cleanup(host)
-  execute("docker", "run", "--rm", "--tty",
+  execute(
+    "docker", "run", "--rm", "--tty",
     "-e", "RAILS_ENV=#{fetch(:rails_env)}",
     "-w", release_path,
     "--volume", "#{fetch(:deploy_to)}:#{fetch(:deploy_to)}:rw",
     "--entrypoint", shared_path.join('bundle', 'bin', 'bundle'),
-    fetch(:ruby_image_name), "exec", "rake", "assets:clean")
+    fetch(:ruby_image_name), "exec", "rake", "assets:clean"
+  )
 end
 def deploy_rake_db_migrate(host)
-  execute("docker", "run", "--rm", "--tty",
+  execute(
+    "docker", "run", "--rm", "--tty",
     "-w", release_path,
+    "-e", "APP_STAGE=#{fetch(:stage)}",
+    "-e", "RAILS_ROOT=#{current_path}",
     "-e", "RAILS_ENV=#{fetch(:rails_env)}",
     "--volume", "#{fetch(:deploy_to)}:#{fetch(:deploy_to)}:rw",
     "--entrypoint", shared_path.join('bundle', 'bin', 'rake'),
-    fetch(:ruby_image_name), "db:migrate")
+    fetch(:ruby_image_name), "db:migrate"
+  )
 end
 def deploy_install_bundler(host)
-  execute("docker", "run", "--rm", "--tty", "--user", fetch(:deployment_username),
+  execute(
+    "docker", "run", "--rm", "--tty", "--user", fetch(:deployment_username),
     "-e", "GEM_HOME=#{shared_path.join('bundle')}",
     "-e", "GEM_PATH=#{shared_path.join('bundle')}",
     "-e", "PATH=#{shared_path.join('bundle', 'bin')}:$PATH",
@@ -198,5 +222,6 @@ def deploy_install_bundler(host)
     "\"umask", "0007", "&&" "/usr/local/bin/gem", "install",
     "--install-dir", "#{shared_path.join('bundle')}",
     "--bindir", shared_path.join('bundle', 'bin'),
-    "--no-ri", "--no-rdoc", "--quiet", "bundler", "-v'#{fetch(:bundler_version)}'\"")
+    "--no-ri", "--no-rdoc", "--quiet", "bundler", "-v'#{fetch(:bundler_version)}'\""
+  )
 end
