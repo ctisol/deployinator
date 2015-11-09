@@ -1,4 +1,3 @@
-set :deploy_log_level,            "debug"
 set :webserver_socket_path,       -> { shared_path.join('run') }
 set :deploy_templates_path,       "templates/deploy"
 set :jobs_app_name,               "jobs"
@@ -7,7 +6,7 @@ set :jobs_app_name,               "jobs"
 # set :deploy_to, '/var/www/my_app'
 
 # Default value for :log_level is :debug
-# set :log_level, :debug
+set :log_level, :info
 
 # Default value for :linked_files is []
 # set :linked_files, %w{config/database.yml}

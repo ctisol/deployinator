@@ -20,4 +20,3 @@ TODO
 * Make chmod/chown faster
 * Remove ruby from ruby_container_name ruby_image_name, etc
 * Remove bluepill names, ditto
-* Find out about default log_level, remove log_level hack

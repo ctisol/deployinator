@@ -3,10 +3,6 @@ lock '3.2.1'
 
 namespace :deploy do
 
-  before :starting, :log_level do
-    SSHKit.config.output_verbosity = fetch(:deploy_log_level)
-  end
-
   before :starting, 'deployinator:sshkit_umask'
 
   # Default branch is :master
