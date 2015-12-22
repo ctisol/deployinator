@@ -20,3 +20,9 @@ TODO
 * Make chmod/chown faster
 * Remove ruby from ruby_container_name ruby_image_name, etc
 * Remove bluepill names, ditto
+* Setup mechanism to run other "setup" tasks before deploy if they've not been run before (locking mechanism?)
+* Move unicorn.rb.erb functionality to more abstract config file uploads, - maybe scripts.d/ style
+* Add a 'non-interactive=true' switch to all interactive questions
+* Add a task to check for a full disk before continuing a deploy (a full disk causes agent forwarding to fail with "Permission denied (publickey)" error since /tmp cannot be written to).
+* Remove brakeman warning
+* Add a hook to run all `<inator gem>:check:settings` tasks before everything else
