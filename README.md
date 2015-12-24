@@ -26,3 +26,5 @@ TODO
 * Add a task to check for a full disk before continuing a deploy (a full disk causes agent forwarding to fail with "Permission denied (publickey)" error since /tmp cannot be written to).
 * Remove brakeman warning
 * Add a hook to run all `<inator gem>:check:settings` tasks before everything else
+* Use a lock file to auto-detect when docker run commands have changed, - and recreate containers instead of restarting them.
+* Run permissions task durring a deploy:restart:force
