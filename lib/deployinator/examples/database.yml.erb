@@ -1,0 +1,10 @@
+---
+production:
+  adapter:  postgresql
+  database: mrg
+  username: mrg
+  password: mrg
+  host:     <%= fetch(:postgres_socket_path) %>
+  pool:     5
+  encoding: UTF8
+  timeout:  500

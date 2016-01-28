@@ -81,6 +81,21 @@ namespace :deploy do
     before 'bundler:install', 'deploy:install_bundler'
   end
 
+  before 'deploy:updated', :install_database_yml do
+    on roles(:app) do |host|
+      config_file = "database.yml"
+      template_path = File.expand_path("./#{fetch(:deploy_templates_path)}/#{config_file}.erb")
+      generated_config_file = ERB.new(File.new(template_path).read).result(binding)
+      set :final_path, -> { release_path.join('config', config_file) }
+      upload! StringIO.new(generated_config_file), "/tmp/#{config_file}"
+      execute("mv", "/tmp/#{config_file}", fetch(:final_path))
+      as :root do
+        execute("chown", "#{fetch(:deployment_username)}:#{fetch(:webserver_username)}", fetch(:final_path))
+      end
+    end
+  end
+
+
   desc 'Restart application using bluepill restart inside the docker container.'
   task :restart => [:install_config_files, 'deploy:check:settings'] do
     on roles(:app) do |host|

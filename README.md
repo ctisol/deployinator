@@ -10,7 +10,6 @@ TODO
 * Create task to create the shared_path.join("run") directory
 * Add a methodology to set environment variables for the containers (without overridding all the built-ins)
 * Change deployinator to use `host.postgres_port` (like postgresinator) in place of `set :postgres_port`
-* Create task that writes `database.yml` dynamically?
 * Skip db:migrate if the database is not running instead of failing the deploy
 * Remove brakeman reminder from deployinator
 * Create ability to set custom additions to the ruby containers without overridding default task definitions (e.g. volume mounts and environment variables)

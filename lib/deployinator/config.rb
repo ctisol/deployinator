@@ -28,6 +28,7 @@ namespace :deployinator do
         "examples/deployment_authorized_keys.erb" =>
           "#{path}/deployment_authorized_keys#{fetch(:example)}.erb",
         "examples/unicorn.rb.erb"                 => "#{path}/unicorn#{fetch(:example)}.rb.erb",
+        "examples/database.yml.erb"               => "#{path}/database#{fetch(:example)}.yml.erb",
         "examples/bluepill.rb.erb"                => "#{path}/bluepill#{fetch(:example)}.rb.erb",
       }.each do |source, destination|
         config = File.read(File.dirname(__FILE__) + "/#{source}")

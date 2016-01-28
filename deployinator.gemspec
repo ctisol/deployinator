@@ -20,6 +20,7 @@ Gem::Specification.new do |s|
     "lib/deployinator/examples/Dockerfile",
     "lib/deployinator/examples/deployment_authorized_keys.erb",
     "lib/deployinator/examples/unicorn.rb.erb",
+    "lib/deployinator/examples/database.yml.erb",
     "lib/deployinator/examples/bluepill.rb.erb"
   ]
   s.required_ruby_version   =               '>= 1.9.3'
