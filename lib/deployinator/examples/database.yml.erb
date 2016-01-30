@@ -1,9 +1,9 @@
 ---
 production:
   adapter:  postgresql
-  database: mrg
-  username: mrg
-  password: mrg
+  database: <%= fetch(:database_name) %>
+  username: <%= fetch(:database_username) %>
+  password: <%= fetch(:database_password) %>
   host:     <%= fetch(:postgres_socket_path) %>
   pool:     5
   encoding: UTF8
