@@ -1,10 +1,10 @@
 namespace :deployinator do
 
-  task :sshkit_umask do
+  task :sshkit_umask => 'deployinator:load_settings' do
     SSHKit.config.umask = "0027"
   end
 
-  task :settings, [:absolute_path, :relative_path] do |t, args|
+  task :settings, ['deployinator:load_settings', :absolute_path, :relative_path] do |t, args|
     run_locally do
       if fetch(:print_all)
         lines = "\nThe following settings are needed in your config (#{args.relative_path}).\n"

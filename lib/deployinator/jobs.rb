@@ -2,7 +2,7 @@ namespace :deploy do
   namespace :jobs do
 
     desc 'Restart jobs using bluepill restart inside the docker container.'
-    task :restart => ['deploy:check:settings'] do
+    task :restart => ['deployinator:load_settings', 'deploy:check:settings'] do
       on roles(:app) do |host|
         name = fetch(:ruby_jobs_container_name)
         if container_exists?(name)
@@ -28,7 +28,7 @@ namespace :deploy do
 
     desc 'Restart application by recreating the docker container.'
     namespace :restart do
-      task :force => ['deploy:check:settings'] do
+      task :force => ['deployinator:load_settings', 'deploy:check:settings'] do
         on roles(:app) do |host|
           name = fetch(:ruby_jobs_container_name)
           if container_exists?(name)
