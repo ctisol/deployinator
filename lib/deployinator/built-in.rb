@@ -1,6 +1,7 @@
 set :webserver_socket_path,       -> { shared_path.join('run') }
 set :deploy_templates_path,       "templates/deploy"
 set :jobs_app_name,               "jobs"
+set :deploy_custom_container_options, -> {} # Set customer Docker options w/o overriding methods below
 
 # Default deploy_to directory is /var/www/my_app
 # set :deploy_to, '/var/www/my_app'
@@ -35,38 +36,39 @@ set :migration_role,                :db                   # Defaults to 'db'
 set :assets_roles,                  [:app]                # Defaults to [:web]
 #set :assets_prefix,                'prepackaged-assets'  # Defaults to 'assets' this should match config.assets.prefix in your rails config/application.rb
 
-# TODO: fix from_local, right now you have to copy-paste the set_scm method to your deploy.rb
-# Use `cap <stage> deploy from_local=true` to deploy your locally changed code
-#   instead of the code in the git repo. You can also add --trace.
-# You can set include_dir and exclude_dir settings (from capistrano-scm-copy gem).
-#   These will only apply when using the from_local=true option
-# set :include_dir, '../.*'
-# set :exclude_dir, ["../.$", "../..", '.././infrastructure']
-def set_scm
-  if ENV['from_local']
-    if "#{fetch(:stage)}" == "production"
-      run_locally do
-        fatal("You are trying to deploy to production using from_local, " +
-          "this should pretty much never be done.")
-      end
-      ask :yes_no, "Are you positive you want to continue?"
-      case fetch(:yes_no).chomp.downcase
-      when "yes"
-      when "no"
-        exit
-      else
-        warn "Please enter 'yes' or 'no'"
-        set_scm
-      end
-    end
-    set :scm, :copy
-  else
-    set :scm, :git
-  end
-end
-set_scm
+# # TODO: fix from_local, right now you have to copy-paste the set_scm method to your deploy.rb
+# # Use `cap <stage> deploy from_local=true` to deploy your locally changed code
+# #   instead of the code in the git repo. You can also add --trace.
+# # You can set include_dir and exclude_dir settings (from capistrano-scm-copy gem).
+# #   These will only apply when using the from_local=true option
+# # set :include_dir, '../.*'
+# # set :exclude_dir, ["../.$", "../..", '.././infrastructure']
+# def set_scm
+#   if ENV['from_local']
+#     if "#{fetch(:stage)}" == "production"
+#       run_locally do
+#         fatal("You are trying to deploy to production using from_local, " +
+#           "this should pretty much never be done.")
+#       end
+#       ask :yes_no, "Are you positive you want to continue?"
+#       case fetch(:yes_no).chomp.downcase
+#       when "yes"
+#       when "no"
+#         exit
+#       else
+#         warn "Please enter 'yes' or 'no'"
+#         set_scm
+#       end
+#     end
+#     set :scm, :copy
+#   else
+#     set :scm, :git
+#   end
+# end
+# set_scm
 
 def deploy_run_bluepill(host)
+  warn "Starting a new container named #{fetch(:ruby_container_name)} on #{host}"
   execute(
     "docker", "run", "--tty", "--detach",
     # "--user", fetch(:webserver_username), TODO find out of this can run as the deployer user instead of root, if so, set the user, if not, fix rails console to su to www-data first
@@ -77,6 +79,7 @@ def deploy_run_bluepill(host)
     "-e", "GEM_PATH=#{shared_path.join('bundle')}",
     "-e", "BUNDLE_GEMFILE=#{current_path.join('Gemfile')}",
     "-e", "PATH=#{shared_path.join('bundle', 'bin')}:$PATH",
+    fetch(:deploy_custom_container_options),
     "--restart", "always", "--memory", "#{fetch(:ruby_container_max_mem_mb)}m",
     "--volume", "#{fetch(:deploy_to)}:#{fetch(:deploy_to)}:rw",
     "--entrypoint", shared_path.join('bundle', 'bin', 'bluepill'),
@@ -112,6 +115,7 @@ def deploy_run_bluepill_jobs(host)
     "-e", "GEM_PATH=#{shared_path.join('bundle')}",
     "-e", "BUNDLE_GEMFILE=#{current_path.join('Gemfile')}",
     "-e", "PATH=#{shared_path.join('bundle', 'bin')}:$PATH",
+    fetch(:deploy_custom_container_options),
     "--restart", "always", "--memory", "#{fetch(:ruby_jobs_container_max_mem_mb)}m",
     "--volume", "#{fetch(:deploy_to)}:#{fetch(:deploy_to)}:rw",
     "--entrypoint", shared_path.join('bundle', 'bin', 'rabid_jobs_tasker'),
@@ -179,6 +183,7 @@ def deploy_assets_precompile(host)
     "--volume", "/etc/passwd:/etc/passwd:ro",
     "--volume", "/etc/group:/etc/group:ro",
     "--volume", "#{fetch(:deploy_to)}:#{fetch(:deploy_to)}:rw",
+    fetch(:deploy_custom_container_options),
     "--entrypoint", "/bin/bash",
     fetch(:ruby_image_name), "-c",
     "\"umask", "0007", "&&", "#{shared_path.join('bundle', 'bin', 'rake')}",
@@ -190,6 +195,7 @@ def deploy_assets_cleanup(host)
     "docker", "run", "--rm", "--tty",
     "-e", "RAILS_ENV=#{fetch(:rails_env)}",
     "-w", release_path,
+    fetch(:deploy_custom_container_options),
     "--volume", "#{fetch(:deploy_to)}:#{fetch(:deploy_to)}:rw",
     "--entrypoint", shared_path.join('bundle', 'bin', 'bundle'),
     fetch(:ruby_image_name), "exec", "rake", "assets:clean"
@@ -202,6 +208,7 @@ def deploy_rake_db_migrate(host)
     "-e", "APP_STAGE=#{fetch(:stage)}",
     "-e", "RAILS_ROOT=#{current_path}",
     "-e", "RAILS_ENV=#{fetch(:rails_env)}",
+    fetch(:deploy_custom_container_options),
     "--volume", "#{fetch(:deploy_to)}:#{fetch(:deploy_to)}:rw",
     "--entrypoint", shared_path.join('bundle', 'bin', 'rake'),
     fetch(:ruby_image_name), "db:migrate"

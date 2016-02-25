@@ -94,6 +94,7 @@ namespace :deployinator do
       end
     end
   end
+  before 'deploy:check', 'deployinator:deployment_user'
 
   task :webserver_user => 'deployinator:load_settings' do
     on roles(:app) do
@@ -102,6 +103,7 @@ namespace :deployinator do
       end
     end
   end
+  before 'deploy:check', 'deployinator:webserver_user'
 
   task :file_permissions => [:load_settings, :deployment_user, :webserver_user] do
     on roles(:app) do
@@ -110,6 +112,8 @@ namespace :deployinator do
       end
     end
   end
+  # TODO the file_permissions task after 'deploy:check' may be able to be replaced
+  #   with only chowning the releases dir and another dir or two.
   after   'deploy:check',   'deployinator:file_permissions'
   before  'deploy:restart', 'deployinator:file_permissions'
 

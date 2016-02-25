@@ -1,7 +1,7 @@
 Gem::Specification.new do |s|
   s.name        = 'deployinator'
-  s.version     = '0.1.5'
-  s.date        = '2015-01-30'
+  s.version     = '0.1.6'
+  s.date        = '2016-02-24'
   s.summary     = "Deploy Applications"
   s.description = "Deploy Ruby on Rails using Capistrano and Docker"
   s.authors     = ["david amick"]
@@ -26,6 +26,7 @@ Gem::Specification.new do |s|
   s.required_ruby_version   =               '>= 1.9.3'
   s.requirements            <<              "Docker ~> 1.3.1"
   s.add_runtime_dependency  'capistrano',   '~> 3.2.1'
+  s.add_runtime_dependency  'net-ssh',      '~> 2.9.4'
   s.add_runtime_dependency  'rake',         '~> 10.3.2'
   s.add_runtime_dependency  'sshkit',       '~> 1.5.1'
   s.homepage      =

@@ -3,10 +3,8 @@ lock '3.2.1'
 
 namespace :deploy do
 
-  before :starting, 'deployinator:sshkit_umask'
-
   # Default branch is :master
-  before :starting, :set_branch => 'deployinator:load_settings' do
+  task :set_branch => 'deployinator:load_settings' do
     unless ENV['from_local']
       # Always use the master branch in production:
       unless "#{fetch(:stage)}" == "production"
@@ -14,6 +12,7 @@ namespace :deploy do
       end
     end
   end
+  before :starting, :set_branch
 
   #desc 'Copies .git folder to support .gemspecs that run git commands'
   task :copy_git => 'deployinator:load_settings' do
@@ -81,7 +80,7 @@ namespace :deploy do
     before 'bundler:install', 'deploy:install_bundler'
   end
 
-  before 'deploy:updated', :install_database_yml => 'deployinator:load_settings' do
+  task :install_database_yml => 'deployinator:load_settings' do
     on roles(:app) do |host|
       config_file = "database.yml"
       template_path = File.expand_path("./#{fetch(:deploy_templates_path)}/#{config_file}.erb")
@@ -94,6 +93,7 @@ namespace :deploy do
       end
     end
   end
+  before 'deploy:updated', 'deploy:install_database_yml'
 
 
   desc 'Restart application using bluepill restart inside the docker container.'
@@ -113,7 +113,6 @@ namespace :deploy do
         as :root do
           execute("rm", "-f", fetch(:webserver_socket_path).join('unicorn.pid'))
         end
-        warn "Starting a new container named #{name} on #{host}"
         deploy_run_bluepill(host)
         check_stayed_running(name)
       end
@@ -121,8 +120,8 @@ namespace :deploy do
   end
   after :publishing, :restart
 
-  desc 'Restart application by recreating the docker container.'
   namespace :restart do
+    desc 'Restart application by recreating the Docker container'
     task :force => ['deployinator:load_settings', :install_config_files, 'deploy:check:settings'] do
       on roles(:app) do |host|
         name = fetch(:ruby_container_name)
@@ -140,7 +139,7 @@ namespace :deploy do
             begin
               execute("docker", "rm",   name)
             rescue
-              fatal "We were not able to remove the container for some reason. Try running 'cap <stage> deploy:restart:force' again."
+              fatal "We were not able to remove the container #{name} for some reason. Try running 'cap <stage> deploy:restart:force' again."
             end
           end
         end
@@ -191,7 +190,7 @@ namespace :deploy do
   end
 
   desc "Write Version file on server"
-  after 'deploy:finished', :write_version_file => 'deployinator:load_settings' do
+  task :write_version_file => 'deployinator:load_settings' do
     on roles(:app) do |host|
       execute "echo", "\"<version>", "<release>#{fetch(:current_revision)}</release>",
         "<deployed_at>#{Time.now.strftime('%m/%d/%Y at %H:%M %Z')}</deployed_at>",
@@ -199,12 +198,14 @@ namespace :deploy do
         "</version>\"", ">", current_path.join('public', 'version.xml')
     end
   end
+  after 'deploy:finished', 'deploy:write_version_file'
 
-  after 'deploy:finished', :success_message => 'deployinator:load_settings' do
+  task :success_message => 'deployinator:load_settings' do
     run_locally do
       info "That was a successful deploy!"
     end
   end
+  after 'deploy:finished', 'deploy:success_message'
 
   # the purpose of this task is to prevent hang during a bundle
   #   install that needs to reach github for the first time and will otherwise

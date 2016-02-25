@@ -24,7 +24,7 @@ namespace :deploy do
         end
       end
     end
-    after 'deploy:restart', :restart
+    after 'deploy:restart', 'deploy:jobs:restart'
 
     desc 'Restart application by recreating the docker container.'
     namespace :restart do
@@ -50,6 +50,7 @@ namespace :deploy do
         end
       end
     end
+    before 'deploy:restart:force', 'deploy:jobs:restart:force'
 
   end
 end
