@@ -13,7 +13,6 @@ end
 
 namespace :deployinator do
   task :load_settings do
-    load "./config/deploy.rb"
     SSHKit.config.output_verbosity = fetch(:log_level)
   end
 
@@ -108,7 +107,11 @@ namespace :deployinator do
   task :file_permissions => [:load_settings, :deployment_user, :webserver_user] do
     on roles(:app) do
       as :root do
-        setup_file_permissions
+        if ENV["skip_perms"] == "true"
+          warn "Skipping file_permissions task"
+        else
+          setup_file_permissions
+        end
       end
     end
   end

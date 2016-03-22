@@ -8,9 +8,9 @@ set :application,                   'my_app_name'
 set :preexisting_ssh_user,          ENV['USER']
 set :deployment_username,           "deployer" # user with SSH access and passwordless sudo rights
 set :webserver_username,            "www-data" # less trusted web server user with limited write permissions
-set :database_name,                 "db_name"
-set :database_username,             "db_username"
-set :database_password,             "db_password"
+set :database_name,                 "db_name"     # for templates/deploy/database.yml
+set :database_username,             "db_username" # for templates/deploy/database.yml
+set :database_password,             "db_password" # for templates/deploy/database.yml
 # All permissions changes are recursive, and unless overridden below,
 #   all folders will be "deployer www-data drwxr-s---",
 #   all files will be   "deployer www-data -rw-r-----"
