@@ -20,3 +20,4 @@ TODO
 * Use a lock file to auto-detect when docker run commands have changed, - and recreate containers instead of restarting them.
 * Run permissions task during a deploy:restart:force
 * Maybe don't run `file_permission` task during restart?
+* Create an option to skip file_permission task.
