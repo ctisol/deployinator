@@ -71,7 +71,6 @@ def deploy_run_bluepill(host)
   warn "Starting a new container named #{fetch(:ruby_container_name)} on #{host}"
   execute(
     "docker", "run", "--tty", "--detach",
-    # "--user", fetch(:webserver_username), TODO find out of this can run as the deployer user instead of root, if so, set the user, if not, fix rails console to su to www-data first
     "--name", fetch(:ruby_container_name),
     "-e", "APP_STAGE=#{fetch(:stage)}",
     "-e", "RAILS_ROOT=#{current_path}",
@@ -136,13 +135,11 @@ def deploy_run_cadvisor(host)
     "google/cadvisor:latest"
   )
 end
-# TODO change these both to run as webserver_username
-#   also offer Rails 2.X versions
 def deploy_rails_console(host)
   [
     "ssh", "-t", "#{host}", "\"docker", "exec", "--interactive", "--tty",
     fetch(:ruby_container_name),
-    # "sudo", "-u", fetch(:webserver_username), TODO, find out if running bluepill as www-data works, otherwise add this line
+    # "sudo", "-u", fetch(:webserver_username), TODO, make sure it works to add this line
     "bash", "-c", "'cd", current_path, "&&",
     shared_path.join('bundle', 'bin', 'rails'),
     "console", "#{fetch(:rails_env)}'\""
