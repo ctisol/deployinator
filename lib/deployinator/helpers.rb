@@ -3,7 +3,6 @@ namespace :deployinator do
   task :sshkit_umask => 'deployinator:load_settings' do
     SSHKit.config.umask = "0027"
   end
-  before 'deploy:starting', 'deployinator:sshkit_umask'
 
   task :settings, [:absolute_path, :relative_path] => 'deployinator:load_settings' do |t, args|
     run_locally do

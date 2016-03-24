@@ -3,6 +3,8 @@ lock '3.2.1'
 
 namespace :deploy do
 
+  before 'deploy:starting', 'deployinator:sshkit_umask'
+
   # Default branch is :master
   task :set_branch => 'deployinator:load_settings' do
     unless ENV['from_local']
