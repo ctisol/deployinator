@@ -1,5 +1,9 @@
 namespace :deployinator do
 
+  task :load_settings do
+    SSHKit.config.output_verbosity = fetch(:log_level)
+  end
+
   task :sshkit_umask => 'deployinator:load_settings' do
     SSHKit.config.umask = "0027"
   end

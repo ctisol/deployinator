@@ -12,10 +12,6 @@ module Capistrano
 end
 
 namespace :deployinator do
-  task :load_settings do
-    SSHKit.config.output_verbosity = fetch(:log_level)
-  end
-
   set :example, "_example"
   desc 'Write example config files'
   task :write_example_configs => 'deployinator:load_settings' do
