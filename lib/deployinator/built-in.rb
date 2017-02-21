@@ -117,6 +117,8 @@ def deploy_run_bluepill_jobs(host)
     fetch(:deploy_custom_container_options),
     "--restart", "always", "--memory", "#{fetch(:ruby_jobs_container_max_mem_mb)}m",
     "--volume", "#{fetch(:deploy_to)}:#{fetch(:deploy_to)}:rw",
+    "--volume", "/etc/passwd:/etc/passwd:ro",
+    "--volume", "/etc/group:/etc/group:ro",
     "--entrypoint", shared_path.join('bundle', 'bin', 'rabid_jobs_tasker'),
     fetch(:ruby_image_name), "--rails_root", current_path,
     "--environment", fetch(:rails_env), "--pid", "#{fetch(:webserver_socket_path)}/jobs.pid", "--maxworkers", "3"
