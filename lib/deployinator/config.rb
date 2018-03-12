@@ -112,7 +112,6 @@ namespace :deployinator do
       else                                                                                                                                     
         warn "Please enter 'yes' or 'no'"                                                                                                      
       end                                                                                                                                      
-    end              
       end
     end
   end
