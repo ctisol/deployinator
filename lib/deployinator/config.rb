@@ -100,7 +100,7 @@ namespace :deployinator do
   end
   before 'deploy:check', 'deployinator:webserver_user'
 
-  task :file_permissions_test => [:load_settings, :deployment_user, :webserver_user] do
+  task :file_permissions => [:load_settings, :deployment_user, :webserver_user] do
     on roles(:app) do
       as :root do
        ask :yes_no, "Do You want to setup file permission?"     
@@ -116,17 +116,17 @@ namespace :deployinator do
     end
   end
   
-  task :file_permissions => [:load_settings, :deployment_user, :webserver_user] do
-    on roles(:app) do
-      as :root do
-        if ENV["skip_perms"] == "true"
-          warn "Skipping file_permissions task"
-        else
-          setup_file_permissions
-        end
-      end
-    end
-  end
+#  task :file_permissions => [:load_settings, :deployment_user, :webserver_user] do
+#    on roles(:app) do
+#      as :root do
+#        if ENV["skip_perms"] == "true"
+#          warn "Skipping file_permissions task"
+#        else
+#          setup_file_permissions
+#        end
+#      end
+#    end
+#  end
   # TODO the file_permissions task after 'deploy:check' may be able to be replaced
   #   with only chowning the releases dir and another dir or two.
   after   'deploy:check',   'deployinator:file_permissions'
