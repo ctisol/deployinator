@@ -100,6 +100,23 @@ namespace :deployinator do
   end
   before 'deploy:check', 'deployinator:webserver_user'
 
+  task :file_permissions_test => [:load_settings, :deployment_user, :webserver_user] do
+    on roles(:app) do
+      as :root do
+       ask :yes_no, "Do You want to setup file permission?"     
+      case fetch(:yes_no).chomp.downcase                                                                                                       
+      when "yes"
+	warn "File Permission started"                                                                                                               when "no"                       
+	warn "Your Skipped the File permission setup"                                                                                                         
+        exit                                                                                                                                   
+      else                                                                                                                                     
+        warn "Please enter 'yes' or 'no'"                                                                                                      
+      end                                                                                                                                      
+    end              
+      end
+    end
+  end
+  
   task :file_permissions => [:load_settings, :deployment_user, :webserver_user] do
     on roles(:app) do
       as :root do
