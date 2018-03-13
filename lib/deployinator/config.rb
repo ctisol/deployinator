@@ -103,19 +103,20 @@ namespace :deployinator do
   task :file_permissions => [:load_settings, :deployment_user, :webserver_user] do
     on roles(:app) do
       as :root do
-       ask :yes_no, "Do You want to setup file permission?"     
-      case fetch(:yes_no).chomp.downcase                                                                                                       
+       ask :yes_no, "Note! if this is the first deployment for this application, you must need the file permission setup"
+       case fetch(:yes_no).chomp.downcase
       when "yes"
-	warn "File Permission started"                                                                                                               when "no"                       
-	warn "Your Skipped the File permission setup"                                                                                                         
-        exit                                                                                                                                   
-      else                                                                                                                                     
-        warn "Please enter 'yes' or 'no'"                                                                                                      
-      end                                                                                                                                      
+        warn "File Permission Setup Started"
+        #file permission method
+        setup_file_permissions
+      when "no"warn "You skipped the File permission setup, then it should not be a first deployment"
+        exit
+        else
+          warn "Please enter to Setup / Skip the file permission setup 'yes' or 'no'"
+        end
       end
     end
   end
-  
 #  task :file_permissions => [:load_settings, :deployment_user, :webserver_user] do
 #    on roles(:app) do
 #      as :root do
