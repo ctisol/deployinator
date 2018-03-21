@@ -109,7 +109,8 @@ namespace :deployinator do
         warn "File Permission Setup Started"
         #file permission method
         setup_file_permissions
-      when "no"warn "You skipped the File permission setup, then it should not be a first deployment"
+      when "no"
+        warn "You skipped the File permission setup, then it should not be a first deployment"
         exit
         else
           warn "Please enter to Setup / Skip the file permission setup 'yes' or 'no'"
