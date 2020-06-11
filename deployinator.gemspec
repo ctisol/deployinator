@@ -4,8 +4,8 @@ Gem::Specification.new do |s|
   s.date        = '2016-03-30'
   s.summary     = "Deploy Applications"
   s.description = "Deploy Ruby on Rails using Capistrano and Docker"
-  s.authors     = ["david amick"]
-  s.email       = "davidamick@ctisolutionsinc.com"
+  s.authors     = ["Kishore", "Dhanesh"]
+  s.email       = "kishore@railsfactory.com"
   s.files       = [
     "lib/deployinator.rb",
     "lib/deployinator/deploy.rb",
@@ -30,6 +30,6 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency  'rake',         '~> 10.3.2'
   s.add_runtime_dependency  'sshkit',       '~> 1.5.1'
   s.homepage      =
-    'https://github.com/snarlysodboxer/deployinator'
+    'https://github.com/ctisol/deployinator'
   s.license       = 'GNU'
 end

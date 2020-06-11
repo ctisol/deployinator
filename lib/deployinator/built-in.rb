@@ -159,7 +159,7 @@ end
 def sshkit_bundle_command_map
   [
     "/usr/bin/env docker run --rm --tty",
-    "--user", fetch(:deployment_username),
+    "--user", "$(id -u #{fetch(:deployment_username)})",
     "-e", "GEM_HOME=#{shared_path.join('bundle')}",
     "-e", "GEM_PATH=#{shared_path.join('bundle')}",
     "-e", "PATH=#{shared_path.join('bundle', 'bin')}:$PATH",
