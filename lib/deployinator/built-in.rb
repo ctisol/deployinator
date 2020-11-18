@@ -81,7 +81,7 @@ def deploy_run_bluepill(host)
     fetch(:deploy_custom_container_options),
     "--restart", "always", "--memory", "#{fetch(:ruby_container_max_mem_mb)}m",
     "--volume", "#{fetch(:deploy_to)}:#{fetch(:deploy_to)}:rw",
-    "--volume", "#{fetch(:deploy_to)}/config/ssmtp.conf:/etc/ssmtp/ssmtp.conf:rw",
+    "--volume", "#{current_path}/config/ssmtp.conf:/etc/ssmtp/ssmtp.conf:rw",
     "--entrypoint", shared_path.join('bundle', 'bin', 'bluepill'),
     fetch(:ruby_image_name), "load",
     current_path.join('config', 'bluepill.rb')
