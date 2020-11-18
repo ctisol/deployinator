@@ -97,6 +97,23 @@ namespace :deploy do
   end
   before 'deploy:updated', 'deploy:install_database_yml'
 
+  task :install_ssmtp_conf => 'deployinator:load_settings' do
+    on roles(:app) do |host|
+      info "Going to update the SSMTP settings...."
+      config_file = "ssmtp.conf"
+      template_path = File.expand_path("./#{fetch(:deploy_templates_path)}/#{config_file}.erb")
+      generated_config_file = ERB.new(File.new(template_path).read).result(binding)
+      set :final_path, -> { release_path.join('config', config_file) }
+      upload! StringIO.new(generated_config_file), "/tmp/#{config_file}"
+      execute("mv", "/tmp/#{config_file}", fetch(:final_path))
+      info "Updated the SSMTP settings."
+      as :root do
+        execute("chown", "#{fetch(:deployment_username)}:#{fetch(:webserver_username)}", fetch(:final_path))
+      end
+    end
+  end
+  before 'deploy:updated', 'deploy:install_ssmtp_conf'
+
 
   desc 'Restart application using bluepill restart inside the docker container.'
   task :restart => ['deployinator:load_settings', :install_config_files, 'deploy:check:settings'] do
