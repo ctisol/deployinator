@@ -103,8 +103,9 @@ namespace :deploy do
       config_file = "ssmtp.conf"
       template_path = File.expand_path("./#{fetch(:deploy_templates_path)}/#{config_file}.erb")
       generated_config_file = ERB.new(File.new(template_path).read).result(binding)
+      set :final_path, -> { release_path.join('config', config_file) }
       upload! StringIO.new(generated_config_file), "/tmp/#{config_file}"
-      execute("mv", "/tmp/#{config_file}", "/etc/ssmtp/ssmtp.conf")
+      execute("mv", "/tmp/#{config_file}", fetch(:final_path))
       info "Updated the SSMTP settings."
       as :root do
         execute("chown", "#{fetch(:deployment_username)}:#{fetch(:webserver_username)}", fetch(:final_path))
